@@ -2,12 +2,12 @@
   "title": "公開型GIS",
   "map": {
     "center": [
-      36.7256347,
-      139.6927151
+      36.727598,
+      139.684564
     ],
-    "zoom": 17,
-    "minZoom": 8,
-    "maxZoom": 20
+    "zoom": 16,
+    "minZoom": 10,
+    "maxZoom": 19
   },
   "valueMaps": {
     "oaza": {
@@ -168,10 +168,6 @@
     }
   },
   "categories": {
-    "地番図": {
-      "order": 10,
-      "open": true
-    },
     "都市計画": {
       "order": 20,
       "open": true
@@ -364,6 +360,38 @@
         ]
       },
       "source": "国土交通省オープンデータ"
+    },
+    "地番データ/地番一覧": {
+      "popup": {
+        "fields": [
+          {
+            "key": "oazacd",
+            "label": "大字",
+            "map": "oaza"
+          },
+          {
+            "key": "label",
+            "label": "地番"
+          }
+        ]
+      },
+      "build": {
+        "keep": [
+          "oazacd",
+          "label"
+        ]
+      },
+      "download": {
+        "enabled": true
+      }
+    },
+    "地番データ/地番図": {
+      "download": {
+        "enabled": true
+      },
+      "popup": {
+        "enabled": false
+      }
     }
   }
 }
