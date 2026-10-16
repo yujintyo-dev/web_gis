@@ -372,14 +372,9 @@
           {
             "key": "label",
             "label": "地番"
-          },
-          {
-            "key": "ANGLE"
-          },
-          {
-            "key": "sortkey"
           }
-        ]
+        ],
+        "highlight": false
       },
       "download": {
         "enabled": true
