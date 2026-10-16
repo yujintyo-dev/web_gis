@@ -384,14 +384,19 @@
       "download": {
         "enabled": true
       },
-      "minZoom": 18,
-      "visible": false
+      "minZoom": 17,
+      "visible": true
     },
     "地番データ/地番図": {
       "download": {
         "enabled": true
       },
-      "minZoom": 18
+      "popup": {
+        "enabled": false,
+        "hideEmpty": false
+      },
+      "minZoom": 17,
+      "visible": true
     }
   }
 }
