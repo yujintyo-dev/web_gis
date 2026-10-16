@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>公開型GIS</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'; connect-src 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- 検索ボックス -->
+  <div id="search-box">
+    <form id="search-form" autocomplete="off">
+      <select id="search-group" hidden aria-label="大字"></select>
+      <input id="search-input" type="search" placeholder="地番を検索(例: 1117-18)" aria-label="地番検索">
+      <button type="submit" aria-label="検索">検索</button>
+    </form>
+    <ul id="search-results" hidden></ul>
+  </div>
+
+  <!-- 右上ボタン -->
+  <div id="buttons">
+    <button id="btn-layers" aria-label="レイヤー">☰</button>
+    <button id="btn-locate" aria-label="現在地">◎</button>
+  </div>
+
+  <!-- レイヤーパネル -->
+  <aside id="panel" hidden>
+    <div class="panel-head">
+      <strong>レイヤー</strong>
+      <button id="panel-close" aria-label="閉じる">✕</button>
+    </div>
+    <h3>背景</h3>
+    <div id="base-list"></div>
+    <h3>表示レイヤー</h3>
+    <div id="layer-list"></div>
+  </aside>
+
+  <div id="status"></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

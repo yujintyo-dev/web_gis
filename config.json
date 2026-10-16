@@ -1,0 +1,213 @@
+{
+  "title": "公開型GIS",
+  "map": {
+    "center": [
+      36.7256347,
+      139.6927151
+    ],
+    "zoom": 17,
+    "minZoom": 8,
+    "maxZoom": 20
+  },
+  "valueMaps": {
+    "oaza": {}
+  },
+  "categories": {
+    "地番図": {
+      "order": 10,
+      "open": true
+    },
+    "都市計画": {
+      "order": 20,
+      "open": true
+    }
+  },
+  "layers": {
+    "地番図/地番": {
+      "order": 10,
+      "visible": true,
+      "minZoom": 18,
+      "maxTiles": 80,
+      "style": {
+        "invisible": true
+      },
+      "labelField": "label",
+      "labelMinZoom": 18,
+      "popup": {
+        "enabled": false
+      },
+      "search": {
+        "groupLabel": "大字",
+        "groupMap": "oaza",
+        "display": "{group} {label}",
+        "zoom": 19,
+        "showLayers": [
+          "地番図/筆界"
+        ]
+      },
+      "download": {
+        "enabled": true,
+        "filename": "tiban_bango"
+      },
+      "build": {
+        "keep": [
+          "label",
+          "oazacd"
+        ],
+        "search": {
+          "label": "label",
+          "group": "oazacd"
+        }
+      }
+    },
+    "地番図/筆界": {
+      "order": 20,
+      "visible": true,
+      "minZoom": 16,
+      "maxTiles": 80,
+      "style": {
+        "color": "#c2410c",
+        "weight": 1,
+        "fillColor": "#fdba74",
+        "fillOpacity": 0.05
+      },
+      "popup": {
+        "fields": [
+          {
+            "key": "label",
+            "label": "地番"
+          },
+          {
+            "key": "oazacd",
+            "label": "大字",
+            "map": "oaza"
+          },
+          {
+            "key": "FUDEID",
+            "label": "筆ID"
+          }
+        ],
+        "maxFeatures": 1
+      },
+      "download": {
+        "enabled": true,
+        "filename": "tiban_hikkai"
+      },
+      "build": {
+        "keep": [
+          "FUDEID"
+        ],
+        "join": {
+          "points": "地番図/地番",
+          "fields": [
+            "label",
+            "oazacd"
+          ]
+        }
+      }
+    },
+    "都市計画/用途地域": {
+      "order": 10,
+      "visible": false,
+      "minZoom": 10,
+      "style": {
+        "color": "#666666",
+        "weight": 1,
+        "fillOpacity": 0.45
+      },
+      "styleBy": {
+        "field": "YoutoCode",
+        "colors": {
+          "1": "#2e9e5b",
+          "2": "#6cc08b",
+          "3": "#a9d96c",
+          "4": "#cfe885",
+          "5": "#ffe97a",
+          "6": "#ffd24d",
+          "7": "#ffb84d",
+          "8": "#8fd18f",
+          "9": "#ffb3c7",
+          "10": "#ff7a8a",
+          "11": "#c79ad9",
+          "12": "#8fb8ea",
+          "13": "#4f7fd0"
+        },
+        "default": "#cccccc"
+      },
+      "legend": [
+        {
+          "label": "第一種低層住居専用地域",
+          "color": "#2e9e5b"
+        },
+        {
+          "label": "第一種中高層住居専用地域",
+          "color": "#a9d96c"
+        },
+        {
+          "label": "第二種中高層住居専用地域",
+          "color": "#cfe885"
+        },
+        {
+          "label": "第一種住居地域",
+          "color": "#ffe97a"
+        },
+        {
+          "label": "第二種住居地域",
+          "color": "#ffd24d"
+        },
+        {
+          "label": "近隣商業地域",
+          "color": "#ffb3c7"
+        },
+        {
+          "label": "商業地域",
+          "color": "#ff7a8a"
+        },
+        {
+          "label": "準工業地域",
+          "color": "#c79ad9"
+        },
+        {
+          "label": "工業地域",
+          "color": "#8fb8ea"
+        },
+        {
+          "label": "工業専用地域",
+          "color": "#4f7fd0"
+        }
+      ],
+      "popup": {
+        "title": "{YoutoName}",
+        "fields": [
+          {
+            "key": "FAR",
+            "label": "容積率",
+            "suffix": "%"
+          },
+          {
+            "key": "BCR",
+            "label": "建蔽率",
+            "suffix": "%"
+          },
+          {
+            "key": "Cityname",
+            "label": "市区町村"
+          }
+        ]
+      },
+      "download": {
+        "enabled": true,
+        "filename": "youto"
+      },
+      "build": {
+        "keep": [
+          "YoutoCode",
+          "YoutoName",
+          "FAR",
+          "BCR",
+          "Cityname"
+        ]
+      }
+    }
+  }
+}

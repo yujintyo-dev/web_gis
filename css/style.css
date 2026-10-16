@@ -1,0 +1,103 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+#map { position: absolute; inset: 0; }
+
+/* 検索 */
+#search-box {
+  position: absolute; z-index: 1000;
+  top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px;
+  width: min(360px, calc(100% - 80px));
+}
+#search-form { display: flex; background: #fff; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,.35); overflow: hidden; }
+#search-input { flex: 1; min-width: 0; border: 0; padding: 11px 12px; font-size: 16px; outline: none; }
+#search-form button { border: 0; background: #1c7ed6; color: #fff; padding: 0 14px; font-size: 15px; cursor: pointer; }
+#search-results {
+  list-style: none; margin: 4px 0 0; padding: 0; background: #fff; border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.35); max-height: 45vh; overflow-y: auto;
+}
+#search-results li { padding: 10px 12px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 14px; }
+#search-results li:last-child { border-bottom: 0; }
+#search-results li:hover { background: #e7f5ff; }
+#search-results li.msg { color: #666; cursor: default; }
+#search-results li.msg:hover { background: #fff; }
+#search-results small { color: #888; margin-left: 6px; }
+
+/* ボタン */
+#buttons {
+  position: absolute; z-index: 1000; display: flex; flex-direction: column; gap: 8px;
+  top: calc(10px + env(safe-area-inset-top, 0px)); right: 10px;
+}
+#buttons button {
+  width: 42px; height: 42px; border: 0; border-radius: 8px; background: #fff;
+  box-shadow: 0 1px 6px rgba(0,0,0,.35); font-size: 20px; cursor: pointer;
+}
+
+/* パネル */
+#panel {
+  position: absolute; z-index: 1100; right: 0; top: 0; bottom: 0;
+  width: min(320px, 88%); background: #fff; padding: 12px 14px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  overflow-y: auto; box-shadow: -2px 0 10px rgba(0,0,0,.3);
+}
+#panel[hidden] { display: none; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; font-size: 17px; }
+.panel-head button { border: 0; background: none; font-size: 20px; cursor: pointer; }
+#panel h3 { margin: 16px 0 6px; font-size: 13px; color: #666; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+#panel label { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 15px; cursor: pointer; }
+.layer-item { padding: 2px 0 6px; border-bottom: 1px solid #f1f1f1; }
+.layer-item input[type=range] { width: 100%; margin: 0 0 2px; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 2px solid; flex: none; }
+.hint { font-size: 12px; color: #c92a2a; margin-left: 24px; }
+
+/* ステータス表示(座標・ズーム) */
+#status {
+  position: absolute; z-index: 900; left: 0; bottom: 0; background: rgba(255,255,255,.85);
+  font-size: 12px; padding: 2px 8px; font-variant-numeric: tabular-nums;
+  padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px));
+}
+.leaflet-bottom.leaflet-left { margin-bottom: 22px; }
+.leaflet-control-zoom { display: none; } /* スマホではピンチ操作。PCは下の @media で表示 */
+@media (hover: hover) { .leaflet-control-zoom { display: block; } .leaflet-top.leaflet-left { top: 52px; } }
+
+/* 地番ラベル */
+.parcel-label {
+  background: transparent; border: 0; box-shadow: none; padding: 0;
+  font-size: 11px; font-weight: 600; color: #222;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+}
+.parcel-label::before { display: none; }
+
+.popup-table { border-collapse: collapse; font-size: 13px; }
+.popup-table th { text-align: left; color: #666; font-weight: 500; padding: 2px 10px 2px 0; white-space: nowrap; }
+.popup-table td { padding: 2px 0; }
+
+/* 検索:大字の選択 */
+#search-group { max-width: 42%; border: 0; border-right: 1px solid #ddd; background: #f8f9fa; padding: 0 4px; font-size: 14px; outline: none; }
+
+/* 読み込み中の表示 */
+#status.loading::after { content: "  読み込み中…"; color: #1c7ed6; }
+
+/* ダウンロード・凡例 */
+.dl-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px 24px; }
+.dl-btn { border: 1px solid #adb5bd; background: #f8f9fa; border-radius: 6px; padding: 5px 9px; font-size: 12px; color: #343a40; text-decoration: none; cursor: pointer; }
+.dl-btn:active { background: #e9ecef; }
+.legend { list-style: none; margin: 2px 0 4px 24px; padding: 0; font-size: 12px; color: #444; }
+.legend li { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.legend .swatch { width: 12px; height: 12px; border-width: 1px; }
+
+/* ポップアップ(複数レイヤーの情報を並べる) */
+.gis-popup .leaflet-popup-content { margin: 10px 12px; }
+.pu-sec + .pu-sec { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e5e5; }
+.pu-layer { font-size: 11px; color: #888; }
+.pu-title { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+.pu-body { font-size: 13px; }
+
+/* カテゴリ(階層) */
+.cat { margin: 4px 0; }
+.cat-head { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid #dee2e6; }
+.cat-head input { margin: 0; }
+.cat-arrow { border: 0; background: none; width: 22px; font-size: 14px; cursor: pointer; padding: 0; color: #495057; }
+.cat-title { font-weight: 700; font-size: 14px; cursor: pointer; flex: 1; }
+.cat-body { margin-left: 12px; padding-left: 8px; border-left: 2px solid #e9ecef; }
+.cat-body[hidden] { display: none; }
+.upd { font-size: 11px; color: #868e96; margin: -2px 0 2px 24px; }
