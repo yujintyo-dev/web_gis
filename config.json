@@ -385,14 +385,11 @@
         "enabled": true
       },
       "minZoom": 18,
-      "visible": true
+      "visible": false
     },
     "地番データ/地番図": {
       "download": {
         "enabled": true
-      },
-      "popup": {
-        "enabled": false
       },
       "minZoom": 18
     }
