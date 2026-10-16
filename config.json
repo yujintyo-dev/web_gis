@@ -372,13 +372,13 @@
           {
             "key": "label",
             "label": "地番"
+          },
+          {
+            "key": "ANGLE"
+          },
+          {
+            "key": "sortkey"
           }
-        ]
-      },
-      "build": {
-        "keep": [
-          "oazacd",
-          "label"
         ]
       },
       "download": {
