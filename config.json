@@ -383,7 +383,9 @@
       },
       "download": {
         "enabled": true
-      }
+      },
+      "minZoom": 18,
+      "visible": true
     },
     "地番データ/地番図": {
       "download": {
@@ -391,7 +393,8 @@
       },
       "popup": {
         "enabled": false
-      }
+      },
+      "minZoom": 18
     }
   }
 }
