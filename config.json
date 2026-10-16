@@ -376,6 +376,11 @@
         ],
         "highlight": false
       },
+      "build": {
+        "search": {
+          "label": "label"
+        }
+      },
       "download": {
         "enabled": true
       },
