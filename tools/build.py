@@ -506,6 +506,9 @@ def main():
             "hash": h, "updated": info.get("updated"),
             "autoColor": PALETTE[int(h, 16) % len(PALETTE)],
         }
+        jj = b.get("join") or {}
+        if jj.get("points") and jj.get("fields"):   # どの点レイヤーのどの属性を取り込んだか(ポップアップ設定の引き継ぎに使う)
+            entry["joinFrom"] = {"points": jj["points"], "fields": list(jj["fields"])}
         entry["keepAll"] = not b.get("keep")   # 属性を絞り込んでいない(元データの全属性を公開)
         if info.get("error"):
             entry["error"] = info["error"]

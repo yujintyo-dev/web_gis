@@ -578,6 +578,10 @@
     var m = valueMap(st.cfg.search.groupMap);
     return (m && m[code]) ? m[code] : '大字コード' + code;
   }
+  function hasGroupName(st, code) {
+    var m = valueMap(st.cfg.search.groupMap);
+    return !!(m && m[code]);
+  }
   function buildGroupSelect() {
     var ss = shardStates();
     if (!ss.length) return Promise.resolve();
@@ -585,8 +589,13 @@
     return loadSearchIndex(st).then(function () {
       if (!st.searchIndex) return;
       var codes = Object.keys(st.searchIndex.shards);
-      var named = codes.map(function (c) { return { c: c, n: groupName(st, c) }; });
-      named.sort(function (a, b) { return a.n < b.n ? -1 : a.n > b.n ? 1 : 0; });
+      var named = codes.map(function (c) { return { c: c, n: groupName(st, c), has: hasGroupName(st, c) }; });
+      named.sort(function (a, b) {                       // 名称あり(五十音順) → 名称なし(コード順)
+        if (a.has !== b.has) return a.has ? -1 : 1;
+        return a.has ? a.n.localeCompare(b.n, 'ja') : (a.c < b.c ? -1 : a.c > b.c ? 1 : 0);
+      });
+      var anyNamed = named.some(function (o) { return o.has; });
+      $('search-input').setAttribute('placeholder', anyNamed ? '地番を検索(例: 1117-18 / 今市 1117-18)' : '地番を検索(例: 1117-18)');
       var label = st.cfg.search.groupLabel || '大字';
       var opts = '<option value="*">' + esc(label) + ': すべて</option>';
       named.forEach(function (o) { opts += '<option value="' + esc(o.c) + '">' + esc(o.n) + '(' + st.searchIndex.shards[o.c][3] + ')</option>'; });
@@ -615,16 +624,27 @@
           if (!st.searchIndex) return [];
           var sel = groupSel.hidden ? '*' : groupSel.value;
           var codes = sel === '*' ? Object.keys(st.searchIndex.shards) : [sel];
+          var lt = terms;                                  // 地番として探す語
+          if (sel === '*') {                               // 「大字: すべて」のとき、入力語に大字名があれば、その大字に絞る
+            var gt = terms.filter(function (t) { return /[^0-9\-]/.test(t); });   // 数字とハイフンだけの語は、地番として扱う
+            if (gt.length) {
+              var matched = codes.filter(function (c) {
+                var nm = normalize(groupName(st, c));
+                return gt.every(function (t) { return nm.indexOf(t) >= 0; });
+              });
+              if (matched.length) { codes = matched; lt = terms.filter(function (t) { return gt.indexOf(t) < 0; }); }
+            }
+          }
           return Promise.all(codes.map(function (c) { return loadShard(st, c).then(function (e) { return { c: c, e: e }; }); }))
             .then(function (list) {
               var hits = [];
               list.forEach(function (it) {
                 for (var i = 0; i < it.e.norm.length && hits.length < 500; i++) {
                   var n = it.e.norm[i], ok = true;
-                  for (var t = 0; t < terms.length; t++) if (n.indexOf(terms[t]) < 0) { ok = false; break; }
+                  for (var t = 0; t < lt.length; t++) if (n.indexOf(lt[t]) < 0) { ok = false; break; }
                   if (ok) {
                     var r = it.e.rows[i];
-                    hits.push({ st: st, label: r[0], lon: r[1], lat: r[2], group: groupName(st, it.c), code: it.c, exact: n === joined });
+                    hits.push({ st: st, label: r[0], lon: r[1], lat: r[2], group: groupName(st, it.c), code: it.c, exact: n === lt.join('') });
                   }
                 }
               });
@@ -901,15 +921,20 @@
       if (m.maxBounds) map.setMaxBounds(m.maxBounds);
 
       // 自動生成された情報(manifest)+ 管理画面の設定(config)を合成
-      var cl = c.layers || {}, seen = {}, cfgs = [];
+      var cl = c.layers || {}, seen = {}, cfgs = [], allCfg = {};
       (manifest.layers || []).forEach(function (e) {
         seen[e.id] = true;
         if (e.error) { console.warn('[' + e.id + '] ' + e.error); return; }
         var cc = cl[e.id] || {};
-        if (cc.hidden) return;
         var mc = GIS.mergeLayer(e.id, e, cc);
+        allCfg[e.id] = mc;                       // 非公開のレイヤーも、設定の引き継ぎ元として保持する
+        if (cc.hidden) return;
         if (mc.broken) { console.warn('[' + e.id + '] 設定が不正なため表示しません'); return; }
         cfgs.push(mc);
+      });
+      // 点レイヤーの属性を取り込んだ面レイヤーは、点レイヤーのポップアップ設定(表示名・単位・対応表)を使う
+      (manifest.layers || []).forEach(function (e) {
+        if (e.joinFrom && allCfg[e.id] && allCfg[e.joinFrom.points]) GIS.applyJoinInheritance(allCfg[e.id], allCfg[e.joinFrom.points], e.joinFrom.fields);
       });
       Object.keys(cl).forEach(function (id) { // dataフォルダに無い画像タイルなどを config だけで追加する場合
         if (seen[id] || !cl[id].type || cl[id].hidden) return;

@@ -200,6 +200,40 @@
     return cfg;
   }
 
+  // ---------- 点レイヤーの属性を取り込んだ面レイヤー: 点レイヤー側のポップアップ設定を引き継ぐ ----------
+  // 例: 「地番」(点)で label の表示名を「地番」と設定 → 「筆界」(面)のポップアップでも、取り込んだ label が「地番」と表示される
+  var INHERIT_KEYS = ['label', 'prefix', 'suffix', 'format', 'map', 'linkText', 'hideEmpty'];
+  function normFields(arr) {
+    return (arr || []).map(function (f) { return typeof f === 'string' ? { key: f } : JSON.parse(JSON.stringify(f)); })
+      .filter(function (f) { return f && f.key != null; });
+  }
+  // cfg: 面レイヤーの設定 / src: 点レイヤーの設定 / joinFields: 取り込んだ属性名の一覧。cfg を書き換えて返す
+  GIS.applyJoinInheritance = function (cfg, src, joinFields) {
+    if (!cfg || !src || !joinFields || !joinFields.length) return cfg;
+    if (cfg.popup && cfg.popup.inheritJoined === false) return cfg;      // 引き継がない設定
+    var sf = src.popup && src.popup.fields && src.popup.fields.length ? normFields(src.popup.fields) : null;
+    if (!sf) return cfg;                                                  // 点レイヤー側で項目を設定していなければ、そのまま
+    var sMap = {};
+    sf.forEach(function (f) { sMap[f.key] = f; });
+    var own = cfg.popup && cfg.popup.fields && cfg.popup.fields.length
+      ? normFields(cfg.popup.fields)
+      : (cfg.fields || []).map(function (f) { return { key: f.name }; });  // 未設定のときは、全項目(取り込んだ属性を含む)
+    var out = [];
+    own.forEach(function (f) {
+      if (joinFields.indexOf(f.key) < 0) { out.push(f); return; }         // 面レイヤー自身の属性は、そのまま
+      var s = sMap[f.key];
+      if (!s) return;                                                     // 点レイヤーで表示にしていない項目は、出さない
+      INHERIT_KEYS.forEach(function (k) { if (s[k] !== undefined) f[k] = s[k]; });   // 表示名・単位・対応表などは点レイヤーの設定を使う
+      out.push(f);
+    });
+    sf.forEach(function (s) {                                             // 点レイヤーで表示にした項目のうち、まだ無いものを追加
+      if (joinFields.indexOf(s.key) >= 0 && !out.some(function (x) { return x.key === s.key; })) out.push(s);
+    });
+    cfg.popup = cfg.popup || {};
+    cfg.popup.fields = out;
+    return cfg;
+  };
+
   // ---------- カテゴリ(階層)----------
   // cfgs: 統合済みレイヤー設定の配列、cats: config.categories
   GIS.buildTree = function (cfgs, cats) {

@@ -93,7 +93,25 @@
   }
   function setL(id, keys, val, keepEmpty) { setPath(cl(id, true), keys, val, keepEmpty); changed(); }
   function setC(keys, val, keepEmpty) { setPath(config, keys, val, keepEmpty); changed(); }
-  function eff(id) { return GIS.mergeLayer(id, mById[id] || null, cl(id)); }
+  function eff(id, depth) {
+    var cfg = GIS.mergeLayer(id, mById[id] || null, cl(id));
+    var m = mById[id];
+    if (m && m.joinFrom && !depth && mById[m.joinFrom.points]) {   // 点レイヤーの属性を取り込んだ面レイヤー
+      GIS.applyJoinInheritance(cfg, eff(m.joinFrom.points, 1), m.joinFrom.fields);
+    }
+    return cfg;
+  }
+  // 点レイヤーのポップアップ設定を引き継いでいる場合の情報(なければ null)
+  function joinedInfo(id) {
+    var m = mById[id];
+    if (!m || !m.joinFrom || !mById[m.joinFrom.points]) return null;
+    var pc = (cl(id) && cl(id).popup) || {};
+    if (pc.inheritJoined === false) return null;
+    var src = eff(m.joinFrom.points, 1);
+    var sf = src.popup && src.popup.fields && src.popup.fields.length
+      ? src.popup.fields.map(function (f) { return typeof f === 'string' ? { key: f } : f; }) : null;
+    return { srcId: m.joinFrom.points, srcName: src.name, keys: m.joinFrom.fields, sf: sf };
+  }
   function fieldsOf(id) { return (mById[id] && mById[id].fields) || []; }
   function changed() {
     dirty = true;
@@ -281,13 +299,24 @@
       var tbl = config.valueMaps[name] || {};
       var ta = h('textarea', { rows: 10, placeholder: '1001=今市\n1002=瀬川' });
       ta.value = Object.keys(tbl).map(function (k) { return k + '=' + tbl[k]; }).join('\n');
-      ta.addEventListener('change', function () {
-        var o = {};
-        ta.value.split(/\r?\n/).forEach(function (line) {
-          var mt = line.match(/^\s*([^=＝,\t]+?)\s*[=＝,\t]\s*(.*?)\s*$/);
-          if (mt && mt[2]) o[mt[1]] = mt[2];
+      var stat = h('p', { 'class': 'help' });
+      function parseMap(text) {   // 「コード=名称」のほか、タブ・カンマ・コロン・空白区切りも読み取る
+        var o = {}, n = 0, bad = [];
+        text.split(/\r?\n/).forEach(function (line) {
+          if (!line.trim()) return;
+          var mt = line.match(/^\s*([^\s=＝,，、:：]+)\s*(?:[=＝,，、:：]|\s)\s*(.*?)\s*$/);
+          if (mt && mt[2]) { o[mt[1]] = mt[2]; n++; } else if (!mt || !/[=＝,，、:：]\s*$/.test(line)) bad.push(line.trim());
         });
-        setC(['valueMaps', name], o, true);
+        return { o: o, n: n, bad: bad };
+      }
+      function showStat(r) {
+        stat.textContent = '名称を読み取れた行: ' + r.n + '件' + (r.bad.length ? ' / 読み取れない行: ' + r.bad.length + '件(例: ' + r.bad.slice(0, 2).join(' | ') + ')。「コード=名称」の形で書いてください' : '');
+      }
+      showStat(parseMap(ta.value));
+      ta.addEventListener('change', function () {
+        var r = parseMap(ta.value);
+        showStat(r);
+        setC(['valueMaps', name], r.o, true);
       });
       // コード一覧の取り込み
       var cand = [];
@@ -307,7 +336,8 @@
       ed.appendChild(h('h3', { text: '対応表: ' + name }));
       ed.appendChild(pick);
       ed.appendChild(ta);
-      ed.appendChild(h('p', { 'class': 'help', text: '名称を書かなかったコードは、そのままコードで表示されます。' }));
+      ed.appendChild(stat);
+      ed.appendChild(h('p', { 'class': 'help', text: '名称を書かなかったコードは、「大字コード1001」のようにコードで表示されます。' }));
       ed.appendChild(h('button', { type: 'button', 'class': 'danger small', text: 'この対応表を削除', onclick: function () {
         if (!confirm('対応表「' + name + '」を削除しますか?')) return;
         delete config.valueMaps[name]; changed(); renderEditor();
@@ -442,7 +472,7 @@
     box.appendChild(row('文字を出すズーム', tIn(e.labelMinZoom, function (v) { setL(id, ['labelMinZoom'], v); }, { type: 'number', ph: '18' }), '画面内で最大400件まで表示します'));
   }
 
-  function popupRows(id) {
+  function popupRows(id, ji) {
     var fl = fieldsOf(id).map(function (f) { return f.name; });
     var pf = cl(id) && cl(id).popup && cl(id).popup.fields;
     var rows = [];
@@ -454,10 +484,26 @@
       pf.forEach(function (fc) { rows.push(mk(true, fc)); });
       fl.forEach(function (k) { if (!rows.some(function (r) { return r.key === k; })) rows.push(mk(false, { key: k })); });
     } else fl.forEach(function (k) { rows.push(mk(true, { key: k })); });
+    if (ji && ji.sf) {   // 取り込んだ属性は、点レイヤーの設定(表示/非表示・表示名・単位・対応表)を使う
+      var sMap = {};
+      ji.sf.forEach(function (f) { sMap[f.key] = f; });
+      rows.forEach(function (r) {
+        if (ji.keys.indexOf(r.key) < 0) return;
+        var sv = sMap[r.key];
+        r.joined = true; r.on = !!sv;
+        if (sv) { r.label = sv.label || ''; r.prefix = sv.prefix || ''; r.suffix = sv.suffix || ''; r.format = sv.format || ''; r.map = typeof sv.map === 'string' ? sv.map : ''; }
+      });
+      ji.sf.forEach(function (sv) {
+        if (ji.keys.indexOf(sv.key) >= 0 && !rows.some(function (r) { return r.key === sv.key; })) { var r2 = mk(true, sv); r2.joined = true; rows.push(r2); }
+      });
+    }
     return rows;
   }
   function writeRows(id, rows) {
+    var prev = {};   // 面レイヤー側に、すでに保存されている項目設定(引き継ぎをオフにしたときに使うため、取り込み属性でも消さない)
+    (((cl(id) && cl(id).popup && cl(id).popup.fields) || [])).forEach(function (f) { if (typeof f === 'string') f = { key: f }; prev[f.key] = f; });
     var out = rows.filter(function (r) { return r.on; }).map(function (r) {
+      if (r.joined) return prev[r.key] ? JSON.parse(JSON.stringify(prev[r.key])) : { key: r.key };   // 取り込んだ属性: 点レイヤーの設定が使われるため、ここでは並び順だけ変える
       var o = { key: r.key };
       ['label', 'prefix', 'suffix', 'format', 'map'].forEach(function (k) { if (r[k]) o[k] = r[k]; });
       return o;
@@ -467,7 +513,14 @@
 
   function tabPopup(box, id, e, m) {
     var pc = e.popup || {};
-    var rows = popupRows(id);
+    var ji = joinedInfo(id);
+    var rows = popupRows(id, ji);
+    if (m && m.joinFrom && mById[m.joinFrom.points]) {
+      var srcN = eff(m.joinFrom.points, 1).name;
+      box.appendChild(row('点レイヤーのポップアップ設定を引き継ぐ', chk(pc.inheritJoined !== false, function (v) {
+        setL(id, ['popup', 'inheritJoined'], v ? undefined : false); renderEditor();
+      }), '点レイヤー「' + srcN + '」から取り込んだ属性(' + m.joinFrom.fields.join('、') + ')の、表示名・単位・対応表などを、点レイヤーの設定に合わせます'));
+    }
     box.appendChild(row('ポップアップを表示', chk(pc.enabled !== false, function (v) { setL(id, ['popup', 'enabled'], v ? undefined : false); }), '地図をクリックしたときの表示です'));
     var title = tIn(pc.title || '', function (v) { setL(id, ['popup', 'title'], v); }, { ph: '(空欄ならレイヤー名)' });
     title.addEventListener('focus', function () { lastInput = title; });
@@ -503,6 +556,14 @@
       var maps = Object.keys(config.valueMaps || {});
       var table = h('table', { 'class': 'grid' });
       box.appendChild(h('p', { 'class': 'help', text: '表示する属性にチェックを入れ、表示名・単位などを設定します。▲▼で順番を変えられます。(1つも選ばないと全項目が表示されます)' }));
+      if (ji) {
+        var openSrc = h('button', { type: 'button', 'class': 'small', text: '点レイヤー「' + ji.srcName + '」のポップアップ設定を開く', onclick: function () { tab = 'popup'; select({ t: 'layer', id: ji.srcId }); } });
+        box.appendChild(h('div', { 'class': 'info' }, [
+          ji.sf ? '◆ の項目は、点レイヤー「' + ji.srcName + '」から取り込んだ属性です。表示するか・表示名・単位・形式・対応表は、点レイヤー側のポップアップ設定が使われます(ここで変更できるのは、並び順だけです)。'
+                : '点レイヤー「' + ji.srcName + '」でポップアップの項目を設定すると、取り込んだ属性(' + ji.keys.join('、') + ')の表示名・単位・対応表が、ここにも反映されます。',
+          h('br'), openSrc
+        ]));
+      }
       box.appendChild(table);
       var sample = {};
       fieldsOf(id).forEach(function (f) { sample[f.name] = f.samples && f.samples[0] != null ? f.samples[0] : ''; });
@@ -511,14 +572,15 @@
         table.appendChild(h('tr', {}, ['表示', '属性', '表示名', '前', '後(単位)', '形式', '対応表', ''].map(function (t) { return h('th', { text: t }); })));
         rows.forEach(function (r, i) {
           var sv = sample[r.key];
+          var lock = function (el) { if (r.joined) el.disabled = true; return el; };   // 点レイヤーから取り込んだ属性は、ここでは編集しない
           var tr = h('tr', { 'class': r.on ? '' : 'off' }, [
-            h('td', {}, [chk(r.on, function (v) { r.on = v; writeRows(id, rows); draw(); })]),
-            h('td', { 'class': 'k' }, [h('span', { text: r.key }), h('small', { text: sv !== '' ? String(sv) : '' })]),
-            h('td', {}, [tIn(r.label, function (v) { r.label = v; writeRows(id, rows); }, { ph: r.key })]),
-            h('td', {}, [tIn(r.prefix, function (v) { r.prefix = v; writeRows(id, rows); })]),
-            h('td', {}, [tIn(r.suffix, function (v) { r.suffix = v; writeRows(id, rows); })]),
-            h('td', {}, [sel_(r.format, [{ v: '', t: '標準' }, { v: 'number', t: '数値(桁区切り)' }, { v: 'link', t: 'リンク' }], function (v) { r.format = v; writeRows(id, rows); })]),
-            h('td', {}, [sel_(r.map, [{ v: '', t: 'なし' }].concat(maps.map(function (n) { return { v: n, t: n }; })), function (v) { r.map = v; writeRows(id, rows); })]),
+            h('td', {}, [lock(chk(r.on, function (v) { r.on = v; writeRows(id, rows); draw(); }))]),
+            h('td', { 'class': 'k' }, [h('span', { text: (r.joined ? '◆ ' : '') + r.key }), h('small', { text: sv !== '' ? String(sv) : '' })]),
+            h('td', {}, [lock(tIn(r.label, function (v) { r.label = v; writeRows(id, rows); }, { ph: r.key }))]),
+            h('td', {}, [lock(tIn(r.prefix, function (v) { r.prefix = v; writeRows(id, rows); }))]),
+            h('td', {}, [lock(tIn(r.suffix, function (v) { r.suffix = v; writeRows(id, rows); }))]),
+            h('td', {}, [lock(sel_(r.format, [{ v: '', t: '標準' }, { v: 'number', t: '数値(桁区切り)' }, { v: 'link', t: 'リンク' }], function (v) { r.format = v; writeRows(id, rows); }))]),
+            h('td', {}, [lock(sel_(r.map, [{ v: '', t: 'なし' }].concat(maps.map(function (n) { return { v: n, t: n }; })), function (v) { r.map = v; writeRows(id, rows); }))]),
             h('td', {}, [
               h('button', { type: 'button', 'class': 'small', text: '▲', onclick: function () { if (i > 0) { rows.splice(i - 1, 0, rows.splice(i, 1)[0]); writeRows(id, rows); draw(); } } }),
               h('button', { type: 'button', 'class': 'small', text: '▼', onclick: function () { if (i < rows.length - 1) { rows.splice(i + 1, 0, rows.splice(i, 1)[0]); writeRows(id, rows); draw(); } } })
