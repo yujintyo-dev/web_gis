@@ -541,7 +541,7 @@ def main():
             shutil.rmtree(p)
     with open(os.path.join(a.out, "manifest.json"), "w", encoding="utf-8") as fp:
         json.dump({"version": 1, "generated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "layers": entries}, fp, ensure_ascii=False)
-    for fn in ("index.html", "admin.html"):
+    for fn in ("index.html", "admin.html", "terms.html"):
         p = os.path.join(a.root, fn)
         if os.path.exists(p):
             shutil.copy(p, a.out)

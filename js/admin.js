@@ -10,6 +10,7 @@
   var dirty = false;
   var lastInput = null;           // ポップアップの {項目} 挿入先
   var previewFn = null;
+  var DEFAULT_NOTICE = 'この地図情報は、あくまでも参考図であり、全ての内容を表示しているものではありません。法的な図面や詳細図面等の閲覧、正確な情報につきましては、担当課にてご確認ください。';
   var PAL = ['#e8590c', '#1971c2', '#2f9e44', '#9c36b5', '#c2255c', '#0c8599', '#f08c00', '#5c940d', '#6741d9', '#e03131', '#868e96', '#12b886'];
 
   function $(id) { return document.getElementById(id); }
@@ -118,10 +119,10 @@
   }
   function cleanConfig() {
     var c = JSON.parse(JSON.stringify(config));
-    ['map', 'categories', 'layers'].forEach(function (k) { if (c[k]) prune(c[k]); });
+    ['map', 'categories', 'layers', 'notice', 'terms'].forEach(function (k) { if (c[k]) prune(c[k]); });
     if (c.layers) Object.keys(c.layers).forEach(function (id) { if (!Object.keys(c.layers[id]).length) delete c.layers[id]; });
     if (c.categories) Object.keys(c.categories).forEach(function (p) { if (!Object.keys(c.categories[p]).length) delete c.categories[p]; });
-    ['categories', 'layers'].forEach(function (k) { if (c[k] && !Object.keys(c[k]).length) delete c[k]; });
+    ['categories', 'layers', 'notice', 'terms'].forEach(function (k) { if (c[k] && !Object.keys(c[k]).length) delete c[k]; });
     if (c.map && !Object.keys(c.map).length) delete c.map;
     return c;
   }
@@ -226,6 +227,23 @@
     ed.appendChild(row('地図右下の出典表示', tIn([].concat(config.attribution || []).join(' / '), function (v) {
       setC(['attribution'], v.trim() ? v.split('/').map(function (x) { return x.trim(); }).filter(Boolean) : undefined);
     }, { ph: '例: 地番図: ○○市(令和8年) / 用途地域: △△県' }), '「 / 」で区切ると複数表示できます。データの提供元の表記ルールに従ってください'));
+    ed.appendChild(h('h3', { text: '画面下の案内帯(クリックで利用規約へ)' }));
+    var nc = config.notice || {};
+    ed.appendChild(row('案内帯を表示', chk(nc.enabled !== false, function (v) { setC(['notice', 'enabled'], v ? undefined : false); }), '参考図であることの案内です。通常は表示したままにしてください'));
+    var nta = h('textarea', { rows: 3, placeholder: DEFAULT_NOTICE });
+    nta.value = nc.text || '';
+    nta.addEventListener('change', function () { setC(['notice', 'text'], nta.value.trim()); });
+    ed.appendChild(row('案内文', nta, '空欄なら、標準の文言(参考図であること・担当課での確認のお願い)になります'));
+    ed.appendChild(h('h3', { text: '利用規約ページ(terms.html)に表示する情報' }));
+    var tm = config.terms || {};
+    ed.appendChild(row('運営者名', tIn(tm.org || '', function (v) { setC(['terms', 'org'], v); }, { ph: '例: ○○市' }), '空欄のときは「本サービスの運営者」と表示されます'));
+    ed.appendChild(row('担当課', tIn(tm.dept || '', function (v) { setC(['terms', 'dept'], v); }, { ph: '例: ○○課' }), '「担当課にてご確認ください」の部分に使われます。空欄のときは「担当課」と表示されます'));
+    ed.appendChild(row('連絡先', tIn(tm.contact || '', function (v) { setC(['terms', 'contact'], v); }, { ph: '例: 電話 000-000-0000 / メール xxx@example.jp' })));
+    ed.appendChild(row('制定日・改定日', tIn(tm.date || '', function (v) { setC(['terms', 'date'], v); }, { ph: '例: 2026年10月17日' })));
+    var eta = h('textarea', { rows: 4, placeholder: '1行が1つの段落になります' });
+    eta.value = tm.extra || '';
+    eta.addEventListener('change', function () { setC(['terms', 'extra'], eta.value.trim()); });
+    ed.appendChild(row('追記事項', eta, '自治体・組織の定めなど、規約に付け足したい文章(任意)'));
     ed.appendChild(h('h3', { text: '最初に表示する場所' }));
     ed.appendChild(h('p', { 'class': 'help', text: '下の地図を動かして、最初に見せたい位置とズームに合わせてください。' }));
     var mapDiv = h('div', { 'class': 'map-pick' });
