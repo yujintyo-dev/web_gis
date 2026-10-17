@@ -388,6 +388,15 @@
             "label": "地番"
           }
         ]
+      },
+      "build": {
+        "search": {
+          "label": "label"
+        },
+        "keep": [
+          "oazacd",
+          "label"
+        ]
       }
     }
   }
