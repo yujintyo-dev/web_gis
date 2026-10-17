@@ -1,0 +1,7 @@
+# GitHub Actions の部品(checkout など)に更新があれば、自動で更新の提案(Pull Request)が届きます
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
