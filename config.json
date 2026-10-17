@@ -5,7 +5,7 @@
       36.724408,
       139.697599
     ],
-    "zoom": 16,
+    "zoom": 15,
     "minZoom": 8,
     "maxZoom": 20
   },
@@ -168,10 +168,6 @@
     }
   },
   "categories": {
-    "地番図": {
-      "order": 10,
-      "open": true
-    },
     "都市計画": {
       "order": 20,
       "open": true
@@ -373,6 +369,20 @@
             "oazacd"
           ]
         }
+      },
+      "minZoom": 17,
+      "popup": {
+        "fields": [
+          {
+            "key": "oazacd"
+          },
+          {
+            "key": "label"
+          }
+        ]
+      },
+      "download": {
+        "enabled": true
       }
     },
     "地番データ/地番一覧": {
@@ -398,7 +408,20 @@
           "oazacd",
           "label"
         ]
+      },
+      "download": {
+        "enabled": true
+      },
+      "search": {
+        "groupMap": "oaza",
+        "showLayers": [
+          "地番データ/地番図"
+        ]
       }
     }
+  },
+  "terms": {
+    "org": "日光市",
+    "dept": "各担当課"
   }
 }
