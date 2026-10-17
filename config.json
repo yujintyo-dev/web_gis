@@ -391,7 +391,8 @@
       },
       "build": {
         "search": {
-          "label": "label"
+          "label": "label",
+          "group": "oazacd"
         },
         "keep": [
           "oazacd",
