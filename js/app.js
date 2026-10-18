@@ -784,6 +784,7 @@
       var hint = $('search-hint');
       hint.innerHTML = '地番だけでも検索できます。<b>大字名と地番をスペースで区切る</b>と、大字を絞り込めます。<br>例: <b>' + esc(searchExample) + '</b>';
       hint.hidden = false;
+      syncSearchBox();
     });
   }
 
@@ -935,6 +936,22 @@
     document.documentElement.style.setProperty('--notice-h', hh + 'px');
   }
   window.addEventListener('resize', syncNotice);
+
+  // ================= 拡大縮小ボタンの位置(検索欄・検索の案内と重ならないように) =================
+  // 検索結果の一覧は地図の上に重ねて出すため、高さに含めない
+  function syncSearchBox() {
+    var box = $('search-box');
+    if (!box) return;
+    var bottom = $('search-form').getBoundingClientRect().bottom;
+    var hint = $('search-hint');
+    if (hint && !hint.hidden) bottom = Math.max(bottom, hint.getBoundingClientRect().bottom);
+    document.documentElement.style.setProperty('--search-h', Math.ceil(bottom) + 'px');
+  }
+  window.addEventListener('resize', syncSearchBox);
+  if (typeof ResizeObserver !== 'undefined') {
+    try { var sro = new ResizeObserver(syncSearchBox); sro.observe($('search-form')); sro.observe($('search-hint')); } catch (e) {}
+  }
+  syncSearchBox();
   if (typeof ResizeObserver !== 'undefined' && $('notice')) { try { new ResizeObserver(syncNotice).observe($('notice')); } catch (e) {} }
 
   // ================= 印刷(プレビュー → 印刷) =================

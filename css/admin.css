@@ -120,3 +120,4 @@ input[type=text].wide { width: 520px; }
 .pu-links { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .pu-pdf { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid #a5d8ff; border-radius: 6px; background: #e7f5ff; color: #1864ab; font-size: 12.5px; font-weight: 600; text-decoration: none; }
 .pu-pdf::before { content: "PDF"; font-size: 9.5px; font-weight: 800; color: #fff; background: #e03131; border-radius: 3px; padding: 1px 4px; }
+ol.steps { margin: 6px 0 10px; padding-left: 1.4em; line-height: 1.8; }

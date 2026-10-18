@@ -93,11 +93,14 @@ def discover(data_dir):
     if not os.path.isdir(data_dir):
         return srcs
     for root, dirs, files in os.walk(data_dir):
-        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and not os.path.islink(os.path.join(root, d)))
         for fn in sorted(files):
             if fn.startswith(".") or fn.lower().startswith("readme"):
                 continue
             if not fn.lower().endswith(NAME_EXT):
+                continue
+            if os.path.islink(os.path.join(root, fn)):   # リンク(別の場所のファイルを指すもの)は、意図しない公開を防ぐため使わない
+                log("  ! リンクのファイルは使いません:", fn)
                 continue
             rel = os.path.relpath(os.path.join(root, fn), data_dir).replace(os.sep, "/")
             id_ = strip_ext(rel)
@@ -437,6 +440,8 @@ def vendor_leaflet(out, cache):
 
 # ---------------- PDF・資料ファイル ----------------
 PDF_WARN_MB = 300
+# 公開してよい形式だけをコピーする(HTML・SVG・スクリプトなど、ブラウザ内で動く形式は、サイトの乗っ取りに使われ得るため除外)
+PDF_EXT = (".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".csv", ".txt", ".zip")
 
 
 def copy_pdf(src_dir, out):
@@ -447,11 +452,17 @@ def copy_pdf(src_dir, out):
         return files
     total = 0
     for root, dirs, fns in os.walk(src_dir):
-        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and not os.path.islink(os.path.join(root, d)))
         for fn in sorted(fns):
             if fn.startswith(".") or fn.lower().startswith("readme"):
                 continue
             p = os.path.join(root, fn)
+            if os.path.islink(p):
+                log("  ! リンクのファイルは公開しません:", fn)
+                continue
+            if not fn.lower().endswith(PDF_EXT):
+                log("  ! この形式のファイルは公開しません(使える形式: %s):" % " ".join(PDF_EXT), fn)
+                continue
             rel = unicodedata.normalize("NFC", os.path.relpath(p, src_dir).replace(os.sep, "/"))
             dst = os.path.join(out, "pdf", *rel.split("/"))
             os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -532,6 +543,7 @@ def main():
             if info.get("error"):
                 log("  ✗", info["error"])
         info = meta["info"]
+        hidden = bool((cl.get(id_) or {}).get("hidden"))   # 管理画面の「サイトに出さない(非公開)」
         parts = id_.split("/")
         entry = {
             "id": id_, "name": parts[-1], "category": "/".join(parts[:-1]),
@@ -551,11 +563,17 @@ def main():
                 entry["joined"] = info["joined"]
             if entry["keepAll"] and info.get("sourceFields"):
                 log("  ※ [%s] 元データの全属性(%d個)を公開します。build.keep で絞り込めます(管理画面の「データ変換」)" % (id_, len(info["sourceFields"])))
-            if "file" in info:
+            if hidden:
+                # 非公開: データ本体・検索データ・サンプル値を公開サイトに入れない(属性名だけ残す。管理画面の設定用)
+                entry["unpublished"] = True
+                entry.pop("sampleRows", None)
+                entry["fields"] = [{"name": f.get("name"), "type": f.get("type"), "joined": f.get("joined")} for f in entry.get("fields") or []]
+                log("  非公開のため、公開サイトにデータを入れません")
+            elif "file" in info:
                 entry["file"] = base + info["file"]
-            if "index" in info:
+            if "index" in info and not hidden:
                 entry["index"] = base + info["index"]
-            if "search" in info:
+            if "search" in info and not hidden:
                 entry["search"] = {"index": base + info["search"]["index"]}
             k = entry["kind"]
             g = entry["geometry"]
@@ -567,7 +585,7 @@ def main():
         shutil.rmtree(a.out)
     os.makedirs(os.path.join(a.out, "generated"))
     for e in entries:
-        if "error" in e:
+        if "error" in e or e.get("unpublished"):
             continue
         shutil.copytree(os.path.join(a.cache, e["hash"], "out"), os.path.join(a.out, "generated", e["hash"]))
     for fn in os.listdir(a.cache):  # 使われなくなった変換結果を掃除

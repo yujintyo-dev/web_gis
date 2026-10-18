@@ -62,7 +62,9 @@ html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Hi
 .leaflet-bottom { bottom: var(--notice-h); }
 .leaflet-bottom.leaflet-left { margin-bottom: 22px; }
 .leaflet-control-zoom { display: none; } /* スマホではピンチ操作。PCは下の @media で表示 */
-@media (hover: hover) { .leaflet-control-zoom { display: block; } .leaflet-top.leaflet-left { top: 52px; } }
+/* 拡大縮小ボタンは、検索欄(案内を含む)の下に置く。--search-h は app.js が検索欄の高さから設定 */
+:root { --search-h: 52px; }
+@media (hover: hover) { .leaflet-control-zoom { display: block; } .leaflet-top.leaflet-left { top: calc(var(--search-h) + 6px); } }
 
 /* 地番ラベル */
 .parcel-label {

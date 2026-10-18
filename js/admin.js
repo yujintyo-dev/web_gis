@@ -580,7 +580,10 @@
       ed.appendChild(h('div', { 'class': 'info', html: '図形: ' + g + ' / ' + (m.count || 0).toLocaleString() + ' 件 / ' + kind + '<br>データ更新: ' + GIS.esc(m.updated || '') +
         (m.joined != null ? '<br>地番の結び付け: ' + m.joined.toLocaleString() + ' 件' : '') }));
     }
-    if (m && m.keepAll && (m.sourceFields || []).length) {
+    if (m && m.unpublished) {
+      ed.appendChild(h('div', { 'class': 'info', text: '🔒 このレイヤーは「非公開」のため、データ・サンプル値は公開サイトに含まれていません(属性名だけ表示しています)。ポップアップのプレビューや、色分けの値の一覧は使えません。' }));
+    }
+    if (m && m.keepAll && !m.unpublished && (m.sourceFields || []).length) {
       ed.appendChild(h('div', { 'class': 'err', text: '⚠ このレイヤーは元データの全属性(' + m.sourceFields.length + '個)を公開しています。ポップアップに出していない属性も、データを直接取得すれば誰でも見られます。「データ変換」タブで公開する属性を絞り込めます。' }));
     }
     var tabs = [['basic', '基本'], ['style', '見た目'], ['popup', 'ポップアップ'], ['pdf', 'PDF資料'], ['dl', 'ダウンロード・検索']];
@@ -629,7 +632,8 @@
     box.appendChild(row('出典(パネルに表示)', tIn(e.source || '', function (v) { setL(id, ['source'], v); }, { ph: '例: ○○市 地番図データ' }), 'レイヤー名の下に「出典: …」と表示されます'));
     box.appendChild(row('データ時点の表示', tIn(e.updatedLabel || '', function (v) { setL(id, ['updatedLabel'], v); }, { ph: e.updated || '例: 令和8年1月' }),
       '空欄なら、自動変換した日付を表示します'));
-    box.appendChild(row('サイトに出さない(非公開)', chk(e.hidden === true, function (v) { setL(id, ['hidden'], v ? true : undefined); renderTree(); })));
+    box.appendChild(row('サイトに出さない(非公開)', chk(e.hidden === true, function (v) { setL(id, ['hidden'], v ? true : undefined); renderTree(); }),
+      '保存して再変換されると、このレイヤーのデータは公開サイトに入りません。※ リポジトリの data フォルダにある元のファイルは、Publicリポジトリでは誰でも見られます'));
     var notes = GIS.notesForLayers(GIS.termsTabs(config), [id]);
     box.appendChild(h('h3', { text: '注意事項' }));
     box.appendChild(h('div', { 'class': 'info' }, [
@@ -1068,63 +1072,22 @@
       'data フォルダに置けない大きなファイルをURLから取得する場合のみ(通常は空欄)'));
   }
 
-  // ---------------- 保存 ----------------
+  // ---------------- 保存(config.json をダウンロードし、GitHubに手でアップロードする) ----------------
   $('btn-dl').addEventListener('click', function () {
     var blob = new Blob([configText()], { type: 'application/json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = 'config.json';
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  });
-
-  var gh = { owner: $('gh-owner'), repo: $('gh-repo'), branch: $('gh-branch'), token: $('gh-token'), remember: $('gh-remember'), msg: $('gh-msg') };
-  function loadCreds() {
-    var c = {};
-    try { c = JSON.parse(localStorage.getItem('gis_admin') || '{}'); } catch (e) {}
-    if (c.token) {  // 旧バージョンが保存したトークンは消す
-      delete c.token;
-      try { localStorage.setItem('gis_admin', JSON.stringify(c)); } catch (e) {}
-    }
-    try { c.token = sessionStorage.getItem('gis_admin_token') || ''; } catch (e) { c.token = ''; }
-    var host = location.hostname, path = location.pathname.split('/').filter(Boolean);
-    if (!c.owner && /\.github\.io$/.test(host)) { c.owner = host.split('.')[0]; if (path.length && !/\.html$/.test(path[0])) c.repo = path[0]; else c.repo = host; }
-    return c;
-  }
-  $('btn-save').addEventListener('click', function () {
-    var c = loadCreds();
-    gh.owner.value = c.owner || ''; gh.repo.value = c.repo || ''; gh.branch.value = c.branch || 'main';
-    gh.token.value = c.token || ''; gh.remember.checked = !!c.token;
-    gh.msg.textContent = ''; gh.msg.className = 'msg';
+    dirty = false;
+    var s = $('state'); s.textContent = 'ダウンロードしました(GitHubへのアップロードで反映)'; s.className = '';
     $('modal').hidden = false;
+    $('modal-close').focus();
   });
-  $('gh-cancel').addEventListener('click', function () { $('modal').hidden = true; });
-  function b64(str) { return btoa(unescape(encodeURIComponent(str))); }
-  $('gh-run').addEventListener('click', function () {
-    var o = gh.owner.value.trim(), r = gh.repo.value.trim(), br = gh.branch.value.trim() || 'main', tk = gh.token.value.trim();
-    if (!o || !r || !tk) { gh.msg.className = 'msg ng'; gh.msg.textContent = 'ユーザー名・リポジトリ名・トークンを入力してください'; return; }
-    try {
-      localStorage.setItem('gis_admin', JSON.stringify({ owner: o, repo: r, branch: br }));   // トークンは保存しない
-      if (gh.remember.checked) sessionStorage.setItem('gis_admin_token', tk); else sessionStorage.removeItem('gis_admin_token');
-    } catch (e) {}
-    var api = 'https://api.github.com/repos/' + encodeURIComponent(o) + '/' + encodeURIComponent(r) + '/contents/config.json';
-    var headers = { Authorization: 'Bearer ' + tk, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
-    gh.msg.className = 'msg'; gh.msg.textContent = '保存中…';
-    fetch(api + '?ref=' + encodeURIComponent(br), { headers: headers }).then(function (res) {
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error('config.json を確認できません(' + res.status + ')。名前・トークンの権限を確認してください');
-      return res.json();
-    }).then(function (cur) {
-      var body = { message: '管理画面から設定を更新', content: b64(configText()), branch: br };
-      if (cur && cur.sha) body.sha = cur.sha;
-      return fetch(api, { method: 'PUT', headers: headers, body: JSON.stringify(body) });
-    }).then(function (res) {
-      if (!res.ok) return res.json().then(function (j) { throw new Error((j && j.message) || ('保存に失敗しました(' + res.status + ')')); });
-      dirty = false;
-      var s = $('state'); s.textContent = '保存しました'; s.className = '';
-      gh.msg.className = 'msg ok';
-      gh.msg.innerHTML = '保存しました。数分後に公開サイトへ反映されます。<br><a href="https://github.com/' + GIS.esc(o) + '/' + GIS.esc(r) + '/actions" target="_blank" rel="noopener">反映の進み具合を見る</a>';
-    }).catch(function (e) { gh.msg.className = 'msg ng'; gh.msg.textContent = e.message; });
-  });
+  $('modal-close').addEventListener('click', function () { $('modal').hidden = true; });
+  // 以前のバージョンがブラウザに残した、GitHub保存用の情報を消す
+  try { localStorage.removeItem('gis_admin'); } catch (e) {}
+  try { sessionStorage.removeItem('gis_admin_token'); } catch (e) {}
 
   // ---------------- 起動 ----------------
   function fetchJSON(url, optional) {

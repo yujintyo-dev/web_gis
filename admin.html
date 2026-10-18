@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>管理画面 - 公開型GIS</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'; connect-src 'self' https://api.github.com">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'; connect-src 'self'">
   <meta name="referrer" content="no-referrer">
   <script src="js/guard.js"></script>
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
@@ -17,8 +17,7 @@
     <span id="state"></span>
     <span class="sp"></span>
     <a href="./" target="_blank" rel="noopener">公開サイトを開く</a>
-    <button id="btn-dl" type="button">設定をダウンロード</button>
-    <button id="btn-save" type="button" class="primary">GitHubに保存</button>
+    <button id="btn-dl" type="button" class="primary">設定をダウンロード(config.json)</button>
   </header>
   <main>
     <nav id="tree"></nav>
@@ -27,18 +26,17 @@
 
   <div id="modal" hidden>
     <div class="modal-box">
-      <h2>GitHubに保存</h2>
-      <p class="help">保存すると <code>config.json</code> が更新され、数分後に公開サイトへ反映されます。<br>
-        トークンの作り方は README の「管理画面」を見てください。<br>トークンは<b>このブラウザの外に保存されません</b>(記憶してもタブを閉じると消えます)。</p>
-      <label class="row"><span class="lb">ユーザー名/組織名</span><input id="gh-owner" type="text"></label>
-      <label class="row"><span class="lb">リポジトリ名</span><input id="gh-repo" type="text"></label>
-      <label class="row"><span class="lb">ブランチ</span><input id="gh-branch" type="text" value="main"></label>
-      <label class="row"><span class="lb">トークン</span><input id="gh-token" type="password" autocomplete="off"></label>
-      <label class="row"><span class="lb"></span><span><input id="gh-remember" type="checkbox"> このタブを閉じるまで記憶する</span></label>
-      <p id="gh-msg" class="msg"></p>
+      <h2>config.json をダウンロードしました</h2>
+      <p class="help">設定を公開サイトに反映するには、ダウンロードした <code>config.json</code> を GitHub のリポジトリにアップロードしてください。</p>
+      <ol class="steps">
+        <li>GitHub でリポジトリを開く</li>
+        <li>「Add file」→「Upload files」を押す</li>
+        <li>ダウンロードした <code>config.json</code> をドラッグ&amp;ドロップする(ファイル名は <b>config.json</b> のまま。「config (1).json」などになっていたら名前を直す)</li>
+        <li>「Commit changes」を押す → 数分後に公開サイトへ反映されます(Actions タブで進み具合を確認)</li>
+      </ol>
+      <p class="help">※ 他の人が同時に管理画面で編集していると、後からアップロードした方の内容で上書きされます。</p>
       <div class="modal-actions">
-        <button id="gh-cancel" type="button">閉じる</button>
-        <button id="gh-run" type="button" class="primary">保存する</button>
+        <button id="modal-close" type="button" class="primary">閉じる</button>
       </div>
     </div>
   </div>
