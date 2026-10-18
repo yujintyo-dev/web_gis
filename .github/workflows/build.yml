@@ -1,9 +1,10 @@
+# data フォルダや config.json を更新(push)すると、自動で変換して公開サイトを更新します
 name: build-and-deploy
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:      # Actions画面の「Run workflow」で手動実行もできます
 
 permissions:
   contents: read
@@ -27,6 +28,7 @@ jobs:
         with:
           python-version: "3.12"
 
+      # 変換済みデータの再利用(同じデータなら変換をスキップして速くなります)
       - uses: actions/cache@v4
         with:
           path: .cache
