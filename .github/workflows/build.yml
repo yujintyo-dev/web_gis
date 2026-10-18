@@ -29,7 +29,7 @@ jobs:
           python-version: "3.12"
 
       # 変換済みデータの再利用(同じデータなら変換をスキップして速くなります)
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .cache
           key: gis-cache-${{ github.run_id }}
