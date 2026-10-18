@@ -621,9 +621,7 @@
     var s = e.search;
     if (m && m.search) {
       box.appendChild(row('このレイヤーを検索対象にする', chk(!(s && s.enabled === false), function (v) { setL(id, ['search', 'enabled'], v ? undefined : false); })));
-      box.appendChild(row('結果の表示形式', tIn(s && s.display || '', function (v) { setL(id, ['search', 'display'], v); }, { ph: '{group} {label}' }), '{group}=大字名 {label}=検索した文字'));
-      box.appendChild(row('グループの呼び名', tIn(s && s.groupLabel || '', function (v) { setL(id, ['search', 'groupLabel'], v); }, { ph: '大字' })));
-      box.appendChild(row('グループ名の対応表', sel_(s && s.groupMap || '', [{ v: '', t: '(なし)' }].concat(Object.keys(config.valueMaps || {}).map(function (n) { return { v: n, t: n }; })), function (v) { setL(id, ['search', 'groupMap'], v); }), '「対応表」画面でコード→名称を登録しておく'));
+      box.appendChild(row('大字名の対応表', sel_(s && s.groupMap || '', [{ v: '', t: '(なし)' }].concat(Object.keys(config.valueMaps || {}).map(function (n) { return { v: n, t: n }; })), function (v) { setL(id, ['search', 'groupMap'], v); }), '検索結果に出す大字名と、「大字名 地番」での絞り込みに使います。「対応表」画面で、コード→名称を登録してください'));
       box.appendChild(row('ジャンプ先のズーム', tIn(s && s.zoom, function (v) { setL(id, ['search', 'zoom'], v); }, { type: 'number', ph: '19' })));
       var ids = allCfgs().filter(function (c) { return c.id !== id; });
       var cur = (s && s.showLayers) || [];

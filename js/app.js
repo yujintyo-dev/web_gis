@@ -547,7 +547,6 @@
 
   // ================= 検索 =================
   var resultsEl = $('search-results');
-  var groupSel = $('search-group');
   function showMessage(text) { resultsEl.innerHTML = '<li class="msg">' + esc(text) + '</li>'; resultsEl.hidden = false; }
 
   // ---- 分割検索データ(大字ごと)----
@@ -582,25 +581,22 @@
     var m = valueMap(st.cfg.search.groupMap);
     return !!(m && m[code]);
   }
-  function buildGroupSelect() {
+  // 検索欄の案内(「大字名 地番」で絞り込めること)を表示する。例の大字名は、対応表に登録された名称から選ぶ
+  var searchExample = '今市 1117-18';
+  function exampleText() { return searchExample; }
+  function setupSearchHint() {
     var ss = shardStates();
     if (!ss.length) return Promise.resolve();
     var st = ss[0];
     return loadSearchIndex(st).then(function () {
       if (!st.searchIndex) return;
-      var codes = Object.keys(st.searchIndex.shards);
-      var named = codes.map(function (c) { return { c: c, n: groupName(st, c), has: hasGroupName(st, c) }; });
-      named.sort(function (a, b) {                       // 名称あり(五十音順) → 名称なし(コード順)
-        if (a.has !== b.has) return a.has ? -1 : 1;
-        return a.has ? a.n.localeCompare(b.n, 'ja') : (a.c < b.c ? -1 : a.c > b.c ? 1 : 0);
-      });
-      var anyNamed = named.some(function (o) { return o.has; });
-      $('search-input').setAttribute('placeholder', anyNamed ? '地番を検索(例: 1117-18 / 今市 1117-18)' : '地番を検索(例: 1117-18)');
-      var label = st.cfg.search.groupLabel || '大字';
-      var opts = '<option value="*">' + esc(label) + ': すべて</option>';
-      named.forEach(function (o) { opts += '<option value="' + esc(o.c) + '">' + esc(o.n) + '(' + st.searchIndex.shards[o.c][3] + ')</option>'; });
-      groupSel.innerHTML = opts;
-      groupSel.hidden = false;
+      var names = Object.keys(st.searchIndex.shards).filter(function (c) { return hasGroupName(st, c); })
+        .map(function (c) { return groupName(st, c); }).sort(function (a, b) { return a.localeCompare(b, 'ja'); });
+      searchExample = (names.length ? names[0] : '大字名') + ' 1117-18';
+      $('search-input').setAttribute('placeholder', '地番を検索(例: ' + searchExample + ')');
+      var hint = $('search-hint');
+      hint.innerHTML = '地番だけでも検索できます。<b>大字名と地番をスペースで区切る</b>と、大字を絞り込めます。<br>例: <b>' + esc(searchExample) + '</b>';
+      hint.hidden = false;
     });
   }
 
@@ -622,29 +618,30 @@
       if (sc.index) { // 分割検索データ
         return loadSearchIndex(st).then(function () {
           if (!st.searchIndex) return [];
-          var sel = groupSel.hidden ? '*' : groupSel.value;
-          var codes = sel === '*' ? Object.keys(st.searchIndex.shards) : [sel];
+          var codes = Object.keys(st.searchIndex.shards);
           var lt = terms;                                  // 地番として探す語
-          if (sel === '*') {                               // 「大字: すべて」のとき、入力語に大字名があれば、その大字に絞る
-            var gt = terms.filter(function (t) { return /[^0-9\-]/.test(t); });   // 数字とハイフンだけの語は、地番として扱う
-            if (gt.length) {
-              var matched = codes.filter(function (c) {
-                var nm = normalize(groupName(st, c));
-                return gt.every(function (t) { return nm.indexOf(t) >= 0; });
-              });
-              if (matched.length) { codes = matched; lt = terms.filter(function (t) { return gt.indexOf(t) < 0; }); }
-            }
+          // 「大字名 地番」: 数字とハイフン以外を含む語を、大字名として扱い、その大字だけに絞る
+          var gt = terms.filter(function (t) { return /[^0-9\-]/.test(t); });
+          if (gt.length) {
+            var matched = codes.filter(function (c) {
+              var nm = normalize(groupName(st, c));
+              return gt.every(function (t) { return nm.indexOf(t) >= 0; });
+            });
+            if (matched.length) { codes = matched; lt = terms.filter(function (t) { return gt.indexOf(t) < 0; }); }
           }
+          var ltJoin = lt.join('');
           return Promise.all(codes.map(function (c) { return loadShard(st, c).then(function (e) { return { c: c, e: e }; }); }))
             .then(function (list) {
               var hits = [];
               list.forEach(function (it) {
-                for (var i = 0; i < it.e.norm.length && hits.length < 500; i++) {
+                var gname = groupName(st, it.c);
+                for (var i = 0; i < it.e.norm.length && hits.length < 3000; i++) {
                   var n = it.e.norm[i], ok = true;
                   for (var t = 0; t < lt.length; t++) if (n.indexOf(lt[t]) < 0) { ok = false; break; }
                   if (ok) {
                     var r = it.e.rows[i];
-                    hits.push({ st: st, label: r[0], lon: r[1], lat: r[2], group: groupName(st, it.c), code: it.c, exact: n === lt.join('') });
+                    hits.push({ st: st, label: r[0], lon: r[1], lat: r[2], group: gname, code: it.c, key: n,
+                      exact: n === ltJoin, rank: n === ltJoin ? 0 : (ltJoin && n.indexOf(ltJoin) === 0 ? 1 : 2) });
                   }
                 }
               });
@@ -670,18 +667,28 @@
     });
     Promise.all(jobs).then(function (lists) {
       var hits = [].concat.apply([], lists);
-      if (!hits.length) { showMessage('該当するものが見つかりません'); return; }
-      hits.sort(function (a, b) { return (b.exact ? 1 : 0) - (a.exact ? 1 : 0); });
+      if (!hits.length) {
+        showMessage('該当するものが見つかりません。' + (shardStates().length ? '大字名と地番はスペースで区切って入力してください(例: ' + exampleText() + ')' : ''));
+        return;
+      }
+      var coll = new Intl.Collator('ja', { numeric: true });
+      hits.sort(function (a, b) {   // 完全一致 → 前方一致 → 部分一致。同じ順位は、大字名順 → 地番順
+        var ra = a.rank != null ? a.rank : (a.exact ? 0 : 2), rb = b.rank != null ? b.rank : (b.exact ? 0 : 2);
+        if (ra !== rb) return ra - rb;
+        if (a.group !== b.group) return coll.compare(String(a.group || ''), String(b.group || ''));
+        return coll.compare(String(a.key || ''), String(b.key || ''));
+      });
       resultsEl.innerHTML = '';
       hits.slice(0, 30).forEach(function (h) {
         var li = document.createElement('li');
-        li.innerHTML = esc(displayText(h.st, h)) + '<small>' + esc(h.st.cfg.name) + '</small>';
+        if (h.group != null) li.innerHTML = '<span class="hit-group">' + esc(h.group) + '</span>' + esc(h.label) + '<small>' + esc(h.st.cfg.name) + '</small>';   // 大字名は必ず表示
+        else li.innerHTML = esc(displayText(h.st, h)) + '<small>' + esc(h.st.cfg.name) + '</small>';
         li.addEventListener('click', function () { goTo(h); });
         resultsEl.appendChild(li);
       });
       if (hits.length > 30) {
         var more = document.createElement('li'); more.className = 'msg';
-        more.textContent = (hits.length >= 500 ? '500件以上' : hits.length + '件') + '該当しました。大字の指定や条件の追加で絞り込んでください。';
+        more.textContent = (hits.length >= 3000 ? '3000件以上' : hits.length + '件') + '該当しました。' + (shardStates().length ? '「大字名 地番」のように、大字名を付けて絞り込んでください(例: ' + exampleText() + ')。' : '条件を追加して絞り込んでください。');
         resultsEl.appendChild(more);
       }
       resultsEl.hidden = false;
@@ -958,7 +965,7 @@
       });
       buildPanel();
       showStatus(map.getCenter());
-      buildGroupSelect();
+      setupSearchHint();
       syncAll();
     })
     .catch(function (e) {
