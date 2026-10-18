@@ -171,6 +171,9 @@
     "都市計画": {
       "order": 20,
       "open": true
+    },
+    "地番データ": {
+      "mode": "group"
     }
   },
   "layers": {
@@ -422,6 +425,22 @@
   },
   "terms": {
     "org": "日光市",
-    "dept": "各担当課"
+    "dept": "各担当課",
+    "tabs": [
+      {
+        "id": "terms",
+        "title": "利用規約",
+        "builtin": true
+      },
+      {
+        "id": "notemvdutp1h",
+        "title": "test",
+        "body": "## test\n注意事項１\n注意事項２",
+        "layers": [
+          "都市計画/用途地域"
+        ],
+        "autoOpen": true
+      }
+    ]
   }
 }
