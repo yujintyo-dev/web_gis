@@ -782,7 +782,7 @@
       searchExample = (names.length ? names[0] : '大字名') + ' 1117-18';
       $('search-input').setAttribute('placeholder', '地番を検索(例: ' + searchExample + ')');
       var hint = $('search-hint');
-      hint.innerHTML = '地番だけでも検索できます。<b>大字名と地番をスペースで区切る</b>と、大字を絞り込めます。例: <b>' 今市本町 1-1 '</b>';
+      hint.innerHTML = '地番だけでも検索できます。<b>大字名と地番をスペースで区切る</b>と、大字を絞り込めます。<br>例: <b>' + esc(searchExample) + '</b>';
       hint.hidden = false;
       syncSearchBox();
     });
