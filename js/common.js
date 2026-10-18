@@ -51,7 +51,7 @@
 
   // HTMLの無害化: 許可したタグ・属性だけを組み立て直す(それ以外は文字として表示)
   var VOID = { br: 1, hr: 1 };
-  var ALLOWED = { b: 1, strong: 1, i: 1, em: 1, u: 1, br: 1, hr: 1, p: 1, div: 1, span: 1, small: 1, sub: 1, sup: 1, h3: 1, h4: 1, h5: 1, ul: 1, ol: 1, li: 1, table: 1, thead: 1, tbody: 1, tr: 1, th: 1, td: 1, a: 1 };
+  var ALLOWED = { b: 1, strong: 1, i: 1, em: 1, u: 1, br: 1, hr: 1, p: 1, div: 1, span: 1, small: 1, sub: 1, sup: 1, h2: 1, h3: 1, h4: 1, h5: 1, ul: 1, ol: 1, li: 1, table: 1, thead: 1, tbody: 1, tr: 1, th: 1, td: 1, a: 1 };
   function attrVal(attrs, name) {
     var m = new RegExp('(?:^|[\\s"\'/])' + name + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|([^\\s"\'>]+))', 'i').exec(attrs);
     return m ? (m[1] != null ? m[1] : m[2] != null ? m[2] : m[3]) : null;
@@ -118,7 +118,53 @@
     if (v !== '') out = esc(fc.prefix || '') + out + esc(fc.suffix || '');
     return '<tr><th>' + esc(fc.label != null && fc.label !== '' ? fc.label : fc.key) + '</th><td>' + out + '</td></tr>';
   }
-  GIS.popupSectionHtml = function (cfg, props, valueMaps) {
+  // ---------- PDF・資料のリンク(属性の値でファイルを切り替える) ----------
+  // cfg.pdf = [{ href: 'pdf/用途地域/{YoutoCode}.pdf', text: '詳細資料(PDF)', open: 'download' | 'tab' }]
+  // files: 公開サイトにあるファイルの一覧({ 'pdf/…': true })。渡すと、ファイルがあるものだけを返す
+  GIS.DEFAULT_PDF_TEXT = '詳細資料(PDF)';
+  GIS.resolveDocLink = function (lk, props, valueMaps) {
+    if (!lk || !lk.href) return null;
+    var tpl = String(lk.href).trim();
+    var external = /^https?:\/\//i.test(tpl);
+    var missing = false;
+    var raw = tpl.replace(/\{([^}:]+)(?::([^}]+))?\}/g, function (m, k, mp) {
+      var v = props ? props[k] : null;
+      if (isEmpty(v)) { missing = true; return ''; }
+      if (mp) v = GIS.mapValue(v, mp, valueMaps);
+      v = String(v).normalize('NFC').trim();
+      if (external) return encodeURIComponent(v);
+      return v.replace(/[\\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/^\.+/, '_');   // フォルダをまたぐ値は使わせない
+    });
+    if (missing) return null;
+    if (external) { var u = GIS.safeUrl(raw); return u ? { href: u, path: u, external: true } : null; }
+    raw = raw.normalize('NFC').replace(/^\.?\/+/, '');
+    if (!/^pdf\//.test(raw)) raw = 'pdf/' + raw;          // サイト内のファイルは pdf フォルダの中だけ
+    if (!GIS.safeRelPath(raw)) return null;
+    return { href: raw.split('/').map(encodeURIComponent).join('/'), path: raw, external: false };
+  };
+  GIS.docLinks = function (cfg, props, valueMaps, files) {
+    var out = [];
+    (Array.isArray(cfg.pdf) ? cfg.pdf : []).forEach(function (lk) {
+      var r = GIS.resolveDocLink(lk, props, valueMaps);
+      if (!r) return;
+      if (!r.external && files && !files[r.path]) return;   // ファイルが無いものはリンクを出さない
+      r.text = GIS.fillTemplate(lk.text || GIS.DEFAULT_PDF_TEXT, props, false, valueMaps);
+      r.open = lk.open === 'tab' ? 'tab' : 'download';
+      out.push(r);
+    });
+    return out;
+  };
+  GIS.docLinksHtml = function (links) {
+    if (!links.length) return '';
+    return '<div class="pu-links">' + links.map(function (l) {
+      var how = (l.external || l.open === 'tab') ? ' target="_blank" rel="noopener"' : ' download="' + esc(l.path.split('/').pop()) + '"';
+      return '<a class="pu-pdf" href="' + esc(l.href) + '"' + how + '>' + esc(l.text) + '</a>';
+    }).join('') + '</div>';
+  };
+
+  // opts.files: PDFの存在確認用の一覧 / opts.extraHtml: セクションの最後に足すHTML(注意事項のリンクなど)
+  GIS.popupSectionHtml = function (cfg, props, valueMaps, opts) {
+    opts = opts || {};
     var pc = cfg.popup || {};
     props = props || {};
     var title = !isEmpty(pc.title) ? GIS.fillTemplate(pc.title, props, false, valueMaps) : cfg.name;
@@ -131,7 +177,78 @@
       body = rows ? '<table class="popup-table">' + rows + '</table>' : '';
     }
     var layerName = !isEmpty(pc.title) ? '<div class="pu-layer">' + esc(cfg.name) + '</div>' : '';
-    return '<div class="pu-sec">' + layerName + '<div class="pu-title">' + esc(title) + '</div>' + body + '</div>';
+    var links = GIS.docLinksHtml(GIS.docLinks(cfg, props, valueMaps, opts.files));
+    return '<div class="pu-sec">' + layerName + '<div class="pu-title">' + esc(title) + '</div>' + body + links + (opts.extraHtml || '') + '</div>';
+  };
+
+  // ---------- 利用規約・注意事項のタブ ----------
+  // config.terms.tabs = [{ id, title, builtin, body, summary, layers: [レイヤーID], autoOpen, hidden }]
+  GIS.termsTabs = function (conf) {
+    var t = (conf && conf.terms) || {};
+    var src = Array.isArray(t.tabs) ? t.tabs.filter(function (x) { return x && typeof x === 'object' && x.id; }) : [];
+    if (!src.some(function (x) { return x.builtin; })) src.unshift({ id: 'terms', title: '利用規約', builtin: true });
+    var seen = {};
+    return src.map(function (x) {
+      var id = String(x.id).replace(/[^\w\-]/g, '_');
+      if (seen[id]) return null;
+      seen[id] = true;
+      return {
+        id: id, title: String(x.title || (x.builtin ? '利用規約' : '注意事項')), builtin: !!x.builtin,
+        body: x.body == null ? '' : String(x.body), summary: x.summary == null ? '' : String(x.summary),
+        layers: Array.isArray(x.layers) ? x.layers.map(String) : [], autoOpen: x.autoOpen === true, hidden: x.hidden === true
+      };
+    }).filter(Boolean);
+  };
+  // 本文に使える差し込み文字
+  GIS.docVars = function (conf) {
+    var t = (conf && conf.terms) || {};
+    return { 'サイト名': (conf && conf.title) || '公開型GIS', '運営者': t.org || '本サービスの運営者', '担当課': t.dept || '担当課', '連絡先': t.contact || '' };
+  };
+  // 本文(かんたんな書き方 または HTML)を、安全なHTMLにする
+  //   ## 見出し / ・項目 または - 項目(箇条書き)/ 1. 項目(番号付き)/ ! 文(囲み)/ 空行で段落を区切る
+  GIS.renderDoc = function (text, vars) {
+    text = String(text == null ? '' : text).replace(/\{(サイト名|運営者|担当課|連絡先)\}/g, function (m, k) {
+      return esc(vars && vars[k] != null ? vars[k] : '');
+    });
+    if (/^\s*</.test(text)) return GIS.sanitizeHtml(text);   // HTMLで書かれた本文
+    function inline(s) {
+      if (/<a[\s>]/i.test(s)) return s;
+      return s.replace(/https?:\/\/[^\s<>"'）)」』]+/g, function (u) { return '<a href="' + u + '">' + u + '</a>'; });
+    }
+    var out = [], para = [], box = [], list = null, m;
+    function flushP() { if (para.length) { out.push('<p>' + para.join('<br>') + '</p>'); para = []; } }
+    function flushB() { if (box.length) { out.push('<div class="box">' + box.join('<br>') + '</div>'); box = []; } }
+    function flushL() {
+      if (list) { out.push('<' + list.t + '>' + list.items.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</' + list.t + '>'); list = null; }
+    }
+    function flushAll() { flushP(); flushB(); flushL(); }
+    text.split(/\r?\n/).forEach(function (line) {
+      var s = line.trim();
+      if (!s) { flushAll(); return; }
+      if ((m = s.match(/^(#{2,3})\s*(.+)$/))) { flushAll(); var hn = m[1].length === 2 ? 'h2' : 'h3'; out.push('<' + hn + '>' + inline(m[2]) + '</' + hn + '>'); return; }
+      if ((m = s.match(/^(?:[-*]\s+|[・●■]\s*)(.+)$/))) { flushP(); flushB(); if (!list || list.t !== 'ul') { flushL(); list = { t: 'ul', items: [] }; } list.items.push(inline(m[1])); return; }
+      if ((m = s.match(/^(?:\d+[.．]|[（(]\d+[)）])\s*(.+)$/))) { flushP(); flushB(); if (!list || list.t !== 'ol') { flushL(); list = { t: 'ol', items: [] }; } list.items.push(inline(m[1])); return; }
+      if ((m = s.match(/^[!！]\s*(.+)$/))) { flushP(); flushL(); box.push(inline(m[1])); return; }
+      flushB(); flushL(); para.push(inline(s));
+    });
+    flushAll();
+    return GIS.sanitizeHtml(out.join(''));
+  };
+  // 指定したレイヤーに関係する注意事項のタブ
+  GIS.notesForLayers = function (tabs, ids) {
+    return tabs.filter(function (t) { return !t.hidden && t.layers.some(function (l) { return ids.indexOf(l) >= 0; }); });
+  };
+
+  // ---------- まとめて表示するカテゴリ ----------
+  // レイヤーのカテゴリ(例: 防災/洪水/想定最大)のうち、一番外側の「まとめて表示」のカテゴリのパスを返す(なければ null)
+  GIS.groupPathOf = function (category, cats) {
+    cats = cats || {};
+    var parts = String(category || '').split('/').filter(Boolean);
+    for (var i = 1; i <= parts.length; i++) {
+      var p = parts.slice(0, i).join('/');
+      if (cats[p] && cats[p].mode === 'group') return p;
+    }
+    return null;
   };
 
   // ---------- レイヤー設定の組み立て ----------
@@ -186,6 +303,10 @@
         .map(function (l) { return { label: String(l.label == null ? '' : l.label), color: GIS.safeColor(l.color) || '#999999' }; });
     } else delete cfg.legend;
     var d = cfg.download;
+    if (Array.isArray(cfg.pdf)) {
+      cfg.pdf = cfg.pdf.filter(function (l) { return l && typeof l === 'object' && typeof l.href === 'string' && l.href.trim(); })
+        .map(function (l) { return { href: l.href, text: l.text == null ? '' : String(l.text), open: l.open === 'tab' ? 'tab' : 'download' }; });
+    } else delete cfg.pdf;
     if (d && typeof d === 'object') {
       if (d.fullUrl) { var u = GIS.safeUrl(d.fullUrl); if (u) d.fullUrl = u; else delete d.fullUrl; }
       if (d.filename != null) d.filename = GIS.safeName(d.filename);
@@ -245,7 +366,8 @@
       var i = path.lastIndexOf('/');
       var parent = ensure(i < 0 ? '' : path.slice(0, i));
       var cc = cats[path] || {};
-      var n = { path: path, title: cc.title || path.slice(i + 1), items: [], open: cc.open !== false };
+      var n = { path: path, title: cc.title || path.slice(i + 1), items: [], open: cc.open !== false,
+        mode: cc.mode === 'group' ? 'group' : 'layers', visible: cc.visible === true, description: cc.description ? String(cc.description) : '' };
       nodes[path] = n;
       parent.items.push({ kind: 'cat', node: n, order: cc.order, name: n.title });
       return n;

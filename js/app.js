@@ -164,6 +164,19 @@
   var kindOf = { tile: 'raster', tiles: 'tiles' };
 
   function setHint(st, text) {
+    st.hintText = text || '';
+    if (st.group) {   // まとめて表示: 中のレイヤーの案内を重複なしで1か所に出す
+      var el = st.group.hintEl, seen = {}, list = [];
+      if (!el) return;
+      var many = st.group.members.length > 1;
+      st.group.members.forEach(function (s) {
+        var tx = s.hintText ? (many ? s.cfg.name + ': ' : '') + s.hintText : '';
+        if (tx && !seen[tx]) { seen[tx] = true; list.push(tx); }
+      });
+      el.textContent = list.join(' / ');
+      el.hidden = !list.length;
+      return;
+    }
     if (!st.hint) return;
     if (text) { st.hint.textContent = text; st.hint.hidden = false; } else st.hint.hidden = true;
   }
@@ -330,7 +343,14 @@
 
   // ================= ポップアップ(config.json の popup 設定で組み立て) =================
   function valueMap(m) { return typeof m === 'string' ? (conf.valueMaps || {})[m] : m; }
-  function popupSection(st, f) { return GIS.popupSectionHtml(st.cfg, f.properties || {}, conf.valueMaps); }
+  var pdfFiles = null;   // 公開サイトにあるPDFの一覧(manifest.json の pdfFiles)
+  function popupSection(st, f) {
+    var notes = notesOf([st]);
+    var extra = notes.length ? '<div class="pu-note">' + notes.map(function (t) {
+      return '<a href="terms.html#' + esc(t.id) + '" target="_blank" rel="noopener" data-note="' + esc(t.id) + '">⚠ ' + esc(t.title) + '</a>';
+    }).join('') + '</div>' : '';
+    return GIS.popupSectionHtml(st.cfg, f.properties || {}, conf.valueMaps, { files: pdfFiles, extraHtml: extra });
+  }
 
   var highlight = L.geoJSON(null, {
     style: { color: '#e03131', weight: 3, fillColor: '#ffe066', fillOpacity: 0.3, interactive: false },
@@ -438,37 +458,71 @@
       g.cb.indeterminate = on > 0 && on < ds.length;
     });
   }
+  // 表示/非表示の切り替え(まとめて表示のカテゴリに入っているレイヤーは、カテゴリ全体を切り替える)
+  function setVisible(st, v, noSync) {
+    var list = st.group ? st.group.members : [st];
+    list.forEach(function (s) {
+      s.visible = v;
+      if (s.checkbox) s.checkbox.checked = v;
+      if (!noSync) sync(s);
+    });
+  }
+  function afterVisibilityChange() { refreshGroups(); updateNotes(); }
+
+  function legendItemsOf(cfg) {
+    var items = cfg.legend;
+    if ((!items || !items.length) && cfg.styleBy && cfg.styleBy.colors && cfg.styleBy.legend !== false) {
+      var lb = cfg.styleBy.labels || {};
+      items = Object.keys(cfg.styleBy.colors).map(function (k) { return { label: lb[k] != null ? lb[k] : k, color: cfg.styleBy.colors[k] }; });
+    }
+    return items || [];
+  }
+  function legendHtml(items) {
+    if (!items.length) return '';
+    return '<ul class="legend">' + items.map(function (l) {
+      return '<li><span class="swatch" style="background:' + esc(l.color) + ';border-color:' + esc(l.color) + '"></span>' + esc(l.label) + '</li>';
+    }).join('') + '</ul>';
+  }
+  // ダウンロードボタン(label を付けると「⬇ 名前: …」のように表示)
+  function dlButtons(st, label) {
+    var dl = st.cfg.download || {};
+    if (dl.enabled !== true || st.kind === 'raster') return [];
+    var pre = label ? label + ' ' : '';
+    var out = [];
+    function btn(text, fn) { var b = document.createElement('button'); b.type = 'button'; b.className = 'dl-btn'; b.textContent = '⬇ ' + pre + text; b.addEventListener('click', fn); out.push(b); }
+    function link(text, href, dlAttr) {
+      var a = document.createElement('a'); a.className = 'dl-btn'; a.href = href; a.textContent = '⬇ ' + pre + text;
+      if (dlAttr) a.setAttribute('download', ''); else { a.target = '_blank'; a.rel = 'noopener'; }
+      out.push(a);
+    }
+    if (st.kind === 'tiles') {
+      btn('表示範囲をGeoJSON保存', function () { downloadView(st); });
+      if (dl.fullUrl) link('全体をダウンロード', dl.fullUrl, false);
+    } else if (dl.fullUrl) link('GeoJSONダウンロード', dl.fullUrl, true);
+    else btn('GeoJSONダウンロード', function () { downloadWhole(st); });
+    return out;
+  }
+  function appendRow(item, cls, els) {
+    if (!els.length) return;
+    var row = document.createElement('div'); row.className = cls;
+    els.forEach(function (e) { row.appendChild(e); });
+    item.appendChild(row);
+  }
+  // 注意事項のボタン(パネル内)
+  function noteButtons(list) {
+    return notesOf(list).map(function (t) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'note-btn';
+      b.textContent = '⚠ ' + t.title; b.title = t.summary || '注意事項を表示します';
+      b.addEventListener('click', function () { openNotes(t.id, notesOf(list)); });
+      return b;
+    });
+  }
 
   function makeLayerItem(st) {
     var cfg = st.cfg;
     var item = document.createElement('div');
     item.className = 'layer-item';
     var color = (cfg.style && (cfg.style.fillColor || cfg.style.color)) || '#999';
-    var legendItems = cfg.legend;
-    if ((!legendItems || !legendItems.length) && cfg.styleBy && cfg.styleBy.colors && cfg.styleBy.legend !== false) {
-      var lb = cfg.styleBy.labels || {};
-      legendItems = Object.keys(cfg.styleBy.colors).map(function (k) { return { label: lb[k] != null ? lb[k] : k, color: cfg.styleBy.colors[k] }; });
-    }
-    var legend = '';
-    if (legendItems && legendItems.length) {
-      legend = '<ul class="legend">' + legendItems.map(function (l) {
-        return '<li><span class="swatch" style="background:' + esc(l.color) + ';border-color:' + esc(l.color) + '"></span>' + esc(l.label) + '</li>';
-      }).join('') + '</ul>';
-    }
-    var dl = cfg.download || {};
-    var dlHtml = '';
-    if (dl.enabled === true && st.kind !== 'raster') {
-      dlHtml = '<div class="dl-row">';
-      if (st.kind === 'tiles') {
-        dlHtml += '<button type="button" class="dl-btn" data-act="view">⬇ 表示範囲をGeoJSON保存</button>';
-        if (dl.fullUrl) dlHtml += '<a class="dl-btn" href="' + esc(dl.fullUrl) + '" target="_blank" rel="noopener">⬇ 全体をダウンロード</a>';
-      } else if (dl.fullUrl) {
-        dlHtml += '<a class="dl-btn" href="' + esc(dl.fullUrl) + '" download>⬇ GeoJSONダウンロード</a>';
-      } else {
-        dlHtml += '<button type="button" class="dl-btn" data-act="whole">⬇ GeoJSONダウンロード</button>';
-      }
-      dlHtml += '</div>';
-    }
     var upd = (cfg.updated && conf.showUpdated !== false) ? '<div class="upd">データ更新: ' + esc(cfg.updatedLabel || cfg.updated) + '</div>' : '';
     if (cfg.source) upd += '<div class="upd">出典: ' + esc(cfg.source) + '</div>';
     item.innerHTML =
@@ -476,17 +530,64 @@
       '<span class="swatch" style="border-color:' + esc(color) + ';background:' + esc((cfg.style && cfg.style.fillColor) || 'transparent') + '"></span>' +
       '<span>' + esc(cfg.name) + '</span></label>' + upd +
       '<input type="range" min="0.1" max="1" step="0.1" value="' + st.opacity + '" aria-label="透明度">' +
-      '<div class="hint" hidden></div>' + legend + dlHtml;
+      '<div class="hint" hidden></div>' + legendHtml(legendItemsOf(cfg));
     var cb = item.querySelector('input[type=checkbox]');
     var rg = item.querySelector('input[type=range]');
     st.hint = item.querySelector('.hint');
     st.checkbox = cb;
-    cb.addEventListener('change', function () { st.visible = cb.checked; sync(st); refreshGroups(); });
+    cb.addEventListener('change', function () { setVisible(st, cb.checked); afterVisibilityChange(); });
     rg.addEventListener('input', function () { setOpacity(st, parseFloat(rg.value)); });
-    var btn = item.querySelector('.dl-btn[data-act]');
-    if (btn) btn.addEventListener('click', function () {
-      if (btn.getAttribute('data-act') === 'view') downloadView(st); else downloadWhole(st);
+    appendRow(item, 'dl-row', dlButtons(st));
+    appendRow(item, 'note-row', noteButtons([st]));
+    return item;
+  }
+
+  // まとめて表示するカテゴリ: 中のレイヤーを1つの項目として扱う(個別には選べない)
+  function makeGroupItem(n, members) {
+    var g = { node: n, members: members, hintEl: null };
+    members.forEach(function (s) { s.group = g; s.checkbox = null; });
+    var item = document.createElement('div');
+    item.className = 'layer-item group-item';
+    var label = document.createElement('label');
+    var cb = document.createElement('input'); cb.type = 'checkbox';
+    var ico = document.createElement('span'); ico.className = 'group-ico'; ico.textContent = '▤';
+    var nm = document.createElement('span'); nm.textContent = n.title;
+    label.appendChild(cb); label.appendChild(ico); label.appendChild(nm);
+    item.appendChild(label);
+    if (n.description) { var d = document.createElement('div'); d.className = 'upd group-desc'; d.textContent = n.description; item.appendChild(d); }
+    // データ更新日・出典(中のレイヤーをまとめて)
+    var upds = [], srcs = [];
+    members.forEach(function (s) {
+      var u = s.cfg.updated && conf.showUpdated !== false ? String(s.cfg.updatedLabel || s.cfg.updated) : '';
+      if (u && upds.indexOf(u) < 0) upds.push(u);
+      if (s.cfg.source && srcs.indexOf(s.cfg.source) < 0) srcs.push(String(s.cfg.source));
     });
+    [['データ更新: ', upds], ['出典: ', srcs]].forEach(function (p) {
+      if (!p[1].length) return;
+      var e = document.createElement('div'); e.className = 'upd'; e.textContent = p[0] + p[1].join('、'); item.appendChild(e);
+    });
+    var rg = document.createElement('input'); rg.type = 'range'; rg.min = '0.1'; rg.max = '1'; rg.step = '0.1'; rg.value = '1'; rg.setAttribute('aria-label', '透明度');
+    rg.addEventListener('input', function () { members.forEach(function (s) { setOpacity(s, parseFloat(rg.value)); }); });
+    item.appendChild(rg);
+    var hint = document.createElement('div'); hint.className = 'hint'; hint.hidden = true;
+    item.appendChild(hint);
+    g.hintEl = hint;
+    // 凡例: 色分けのあるレイヤーはその凡例、ないレイヤーは「色 + レイヤー名」
+    var items = [];
+    members.forEach(function (s) {
+      var li = legendItemsOf(s.cfg);
+      if (li.length) { items = items.concat(li); return; }
+      var stl = s.cfg.style || {};
+      if (stl.invisible) return;
+      items.push({ label: s.cfg.name, color: GIS.safeColor(stl.fillColor || stl.color) || '#999999' });
+    });
+    if (items.length) item.insertAdjacentHTML('beforeend', legendHtml(items));
+    var dls = [];
+    members.forEach(function (s) { dls = dls.concat(dlButtons(s, members.length > 1 ? s.cfg.name : '')); });
+    appendRow(item, 'dl-row', dls);
+    appendRow(item, 'note-row', noteButtons(members));
+    cb.addEventListener('change', function () { setVisible(members[0], cb.checked); afterVisibilityChange(); });
+    groupBoxes.push({ cb: cb, node: n });
     return item;
   }
 
@@ -494,7 +595,9 @@
     node.items.forEach(function (it) {
       if (it.kind === 'layer') { box.appendChild(makeLayerItem(stById[it.cfg.id])); return; }
       var n = it.node;
-      if (!descendants(n).length) return; // 中身が空のカテゴリは出さない
+      var members = descendants(n);
+      if (!members.length) return; // 中身が空のカテゴリは出さない
+      if (n.mode === 'group') { box.appendChild(makeGroupItem(n, members)); return; }
       var wrap = document.createElement('div'); wrap.className = 'cat';
       var head = document.createElement('div'); head.className = 'cat-head';
       var arrow = document.createElement('button'); arrow.type = 'button'; arrow.className = 'cat-arrow'; arrow.setAttribute('aria-label', '開閉');
@@ -507,8 +610,8 @@
       arrow.addEventListener('click', function () { setOpen(body.hidden); });
       title.addEventListener('click', function () { setOpen(body.hidden); });
       cb.addEventListener('change', function () {
-        descendants(n).forEach(function (s) { s.visible = cb.checked; if (s.checkbox) s.checkbox.checked = cb.checked; sync(s); });
-        refreshGroups();
+        descendants(n).forEach(function (s) { setVisible(s, cb.checked); });
+        afterVisibilityChange();
       });
       groupBoxes.push({ cb: cb, node: n });
       wrap.appendChild(head); wrap.appendChild(body);
@@ -532,6 +635,90 @@
     renderNode(treeRoot, $('layer-list'));
     refreshGroups();
   }
+
+  // ================= 注意事項(利用規約ページのタブと連動) =================
+  var noteTabs = [];        // 公開中のタブ(利用規約・注意事項)
+  var docVars = {};
+  var shownNotes = {};      // 案内帯に出したことのある注意事項(新しく出たものを目立たせる)
+  function notesOf(list) {
+    var ids = list.filter(Boolean).map(function (s) { return s.cfg.id; });
+    return GIS.notesForLayers(noteTabs, ids);
+  }
+  function activeNotes() { return notesOf(states.filter(function (s) { return s.visible; })); }
+  function wasAutoShown(id) { try { return sessionStorage.getItem('gis_note_' + id) === '1'; } catch (e) { return !!shownNotes['auto_' + id]; } }
+  function markAutoShown(id) { shownNotes['auto_' + id] = true; try { sessionStorage.setItem('gis_note_' + id, '1'); } catch (e) {} }
+
+  // 画面下の案内帯に、表示中のレイヤーの注意事項ボタンを並べる
+  function updateNotes() {
+    var list = activeNotes();
+    var box = $('nn-list');
+    box.innerHTML = '';
+    list.forEach(function (t) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'nn-chip' + (shownNotes[t.id] ? '' : ' new');
+      b.textContent = '⚠ ' + t.title;
+      b.title = t.summary || 'クリックで注意事項を表示';
+      b.addEventListener('click', function () { openNotes(t.id, activeNotes()); });
+      box.appendChild(b);
+      shownNotes[t.id] = true;
+    });
+    $('notice-notes').hidden = !list.length;
+    $('notice').hidden = $('notice-main').hidden && !list.length;
+    syncNotice();
+    // 「初めて表示したときに自動で表示」の注意事項(このタブを閉じるまで1回だけ)
+    if (!printOn && $('note-modal').hidden) {
+      var auto = list.filter(function (t) { return t.autoOpen && !wasAutoShown(t.id); });
+      if (auto.length) { auto.forEach(function (t) { markAutoShown(t.id); }); openNotes(auto[0].id, list); }
+    }
+  }
+
+  // 注意事項のウィンドウ(地図の上に表示。関係する注意事項が複数あるときはタブで切り替え)
+  var lastFocus = null;
+  function openNotes(id, list) {
+    if (!list || !list.length) list = noteTabs.filter(function (t) { return t.id === id; });
+    var tabsBox = $('nm-tabs');
+    tabsBox.innerHTML = '';
+    function show(t) {
+      $('nm-title').textContent = t.title;
+      var names = t.layers.map(function (lid) { return stById[lid] ? stById[lid].cfg.name : null; }).filter(Boolean);
+      $('nm-layers').textContent = names.length ? '対象: ' + names.join('、') : '';
+      $('nm-layers').hidden = !names.length;
+      $('nm-body').innerHTML = (t.summary ? '<div class="box">' + esc(t.summary) + '</div>' : '') + GIS.renderDoc(t.body, docVars);
+      $('nm-body').scrollTop = 0;
+      $('nm-open').href = 'terms.html#' + encodeURIComponent(t.id);
+      Array.prototype.forEach.call(tabsBox.children, function (b) { b.setAttribute('aria-selected', b.getAttribute('data-id') === t.id ? 'true' : 'false'); });
+    }
+    if (list.length > 1) {
+      list.forEach(function (t) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-id', t.id); b.textContent = t.title;
+        b.addEventListener('click', function () { show(t); });
+        tabsBox.appendChild(b);
+      });
+    }
+    tabsBox.hidden = list.length < 2;
+    var cur = list.filter(function (t) { return t.id === id; })[0] || list[0];
+    if (!cur) return;
+    lastFocus = document.activeElement;
+    $('note-modal').hidden = false;
+    show(cur);
+    $('nm-ok').focus();
+  }
+  function closeNotes() {
+    $('note-modal').hidden = true;
+    if (lastFocus && lastFocus.focus) try { lastFocus.focus(); } catch (e) {}
+  }
+  $('nm-close').addEventListener('click', closeNotes);
+  $('nm-ok').addEventListener('click', closeNotes);
+  $('note-modal').addEventListener('click', function (e) { if (e.target === $('note-modal')) closeNotes(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('note-modal').hidden) closeNotes(); });
+  // ポップアップ内の「⚠ 注意事項」リンク
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[data-note]') : null;
+    if (!a) return;
+    e.preventDefault();
+    openNotes(a.getAttribute('data-note'), activeNotes());
+  });
 
   $('btn-layers').addEventListener('click', function () { $('panel').hidden = !$('panel').hidden; });
   $('panel-close').addEventListener('click', function () { $('panel').hidden = true; });
@@ -701,9 +888,9 @@
     // 関連レイヤーを自動でONにする
     var ids = [h.st.cfg.id].concat(sc.showLayers || []);
     states.forEach(function (s) {
-      if (ids.indexOf(s.cfg.id) >= 0 && !s.visible) { s.visible = true; if (s.checkbox) s.checkbox.checked = true; }
+      if (ids.indexOf(s.cfg.id) >= 0 && !s.visible) setVisible(s, true, true);
     });
-    refreshGroups();
+    afterVisibilityChange();
     var ll, zoom = sc.zoom || 19;
     if (h.f) {
       var b = L.geoJSON(h.f).getBounds();
@@ -836,6 +1023,9 @@
     notes.innerHTML = '';
     function add(text) { if (!text) return; var p = document.createElement('p'); p.textContent = text; notes.appendChild(p); }
     add(($('notice-text') && $('notice-text').textContent) || '');
+    activeNotes().forEach(function (t) {   // 表示中のレイヤーの注意事項
+      add('【' + t.title + '】' + (t.summary || '利用規約・注意事項のページの「' + t.title + '」をご確認ください。'));
+    });
     var base = bases.filter(function (b) { return map.hasLayer(b.layer); })[0];
     add('背景: ' + (base ? base.name : '') + '(出典: 国土地理院)');
     var meta = [];
@@ -880,7 +1070,7 @@
   function enterPrint(auto) {
     if (printOn) return;
     printOn = true; autoPrint = !!auto;
-    map.closePopup(); highlight.clearLayers(); $('search-results').hidden = true; $('panel').hidden = true;
+    map.closePopup(); highlight.clearLayers(); $('search-results').hidden = true; $('panel').hidden = true; $('note-modal').hidden = true;
     document.body.classList.add('print-mode');
     applyPaper();
     if (auto) { map.invalidateSize(); updatePrintInfo(); } else { window.scrollTo(0, 0); waitLoaded(); }
@@ -918,7 +1108,11 @@
       if (c.title) document.title = c.title;
       var nc = c.notice || {};
       if (nc.text) $('notice-text').textContent = String(nc.text);
-      if (nc.enabled === false) $('notice').hidden = true;
+      if (nc.enabled === false) { $('notice-main').hidden = true; $('notice').hidden = true; }
+      noteTabs = GIS.termsTabs(c).filter(function (t) { return !t.hidden; });
+      docVars = GIS.docVars(c);
+      pdfFiles = null;
+      if (Array.isArray(manifest.pdfFiles)) { pdfFiles = {}; manifest.pdfFiles.forEach(function (p) { pdfFiles[String(p).normalize('NFC')] = true; }); }
       syncNotice();
       var m = c.map || {};
       map.setMinZoom(m.minZoom || 5);
@@ -953,7 +1147,9 @@
       treeRoot = GIS.buildTree(cfgs, c.categories);
       var flat = GIS.flatten(treeRoot);              // 画面の上から順
       flat.slice().reverse().forEach(function (cfg) { // 地図では上のレイヤーほど手前
-        var st = { cfg: cfg, kind: kindOf[cfg.type] || 'geojson', visible: cfg.visible === true, opacity: 1, tiles: new Map(), needed: {} };
+        var gp = GIS.groupPathOf(cfg.category, c.categories);   // まとめて表示のカテゴリに入っていれば、カテゴリの「最初から表示」に従う
+        var vis = gp ? ((c.categories || {})[gp].visible === true) : cfg.visible === true;
+        var st = { cfg: cfg, kind: kindOf[cfg.type] || 'geojson', visible: vis, opacity: 1, tiles: new Map(), needed: {} };
         if (st.kind === 'raster') {
           st.layer = L.tileLayer(cfg.url, {
             attribution: cfg.attribution ? esc(cfg.attribution) : '', minZoom: cfg.minZoom || 0,
@@ -964,6 +1160,7 @@
         stById[cfg.id] = st;
       });
       buildPanel();
+      updateNotes();
       showStatus(map.getCenter());
       setupSearchHint();
       syncAll();

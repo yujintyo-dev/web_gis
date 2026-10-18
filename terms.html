@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>利用規約</title>
+  <title>利用規約・注意事項</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'; connect-src 'self'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <link rel="stylesheet" href="css/terms.css">
@@ -11,9 +11,27 @@
 <body>
   <main>
     <p class="back"><a href="./">← 地図に戻る</a></p>
-    <h1>利用規約</h1>
+    <h1>利用規約・注意事項</h1>
     <p class="sub"><span class="t-site">公開型GIS</span></p>
 
+    <!-- タブ(管理画面の「利用規約・注意事項」で追加・編集します) -->
+    <nav id="tabs" role="tablist" aria-label="利用規約・注意事項"></nav>
+    <article id="doc" class="doc" role="tabpanel"></article>
+    <noscript><p>このページの表示には JavaScript を有効にしてください。</p></noscript>
+
+    <h2 class="contact-h">お問い合わせ先</h2>
+    <p>運営者: <span class="t-org">本サービスの運営者</span><br>担当課: <span class="t-dept">担当課</span><span id="t-contact-row" hidden><br>連絡先: <span id="t-contact"></span></span></p>
+    <p class="date" id="t-date-row" hidden>制定日: <span id="t-date"></span></p>
+    <p class="back"><a href="./">← 地図に戻る</a></p>
+  </main>
+
+  <!--
+    標準の利用規約の本文です(「利用規約」タブで「標準の利用規約文を使う」になっているときに表示されます)。
+    {運営者} {担当課} {サイト名} {連絡先} は、管理画面で設定した値に置き換わります。
+    公開前に、運営者(自治体・組織)の法務担当などが内容を確認してください。
+    ※ 管理画面で「文章を自分で編集する」に切り替えると、この本文を読み込んで編集できます。
+  -->
+  <template id="std-terms">
     <div class="agree">
       <strong>ご利用にあたって</strong>
       <p>本サービスをご利用になった方は、この利用規約の内容を理解し、同意したものとみなします。同意いただけない場合は、本サービスをご利用いただけません。</p>
@@ -21,17 +39,17 @@
 
     <div class="ref">
       <strong>この地図は「参考図」です</strong>
-      <p>この地図情報は、あくまでも参考図であり、全ての内容を表示しているものではありません。法的な図面や詳細図面等の閲覧、正確な情報につきましては、<span class="t-dept">担当課</span>にてご確認ください。</p>
+      <p>この地図情報は、あくまでも参考図であり、全ての内容を表示しているものではありません。法的な図面や詳細図面等の閲覧、正確な情報につきましては、{担当課}にてご確認ください。</p>
     </div>
 
     <h2>第1条(目的と適用)</h2>
-    <p>この利用規約(以下「本規約」といいます。)は、<span class="t-org">本サービスの運営者</span>(以下「運営者」といいます。)が提供する「<span class="t-site">公開型GIS</span>」(以下「本サービス」といいます。)の利用条件を定めるものです。本サービスを利用するすべての方(以下「利用者」といいます。)に適用されます。</p>
+    <p>この利用規約(以下「本規約」といいます。)は、{運営者}(以下「運営者」といいます。)が提供する「{サイト名}」(以下「本サービス」といいます。)の利用条件を定めるものです。本サービスを利用するすべての方(以下「利用者」といいます。)に適用されます。</p>
 
     <h2>第2条(参考図であること)</h2>
     <ol>
       <li>本サービスで提供する地図情報(地番図、用途地域その他一切の情報を含みます。以下「本地図情報」といいます。)は、あくまでも参考図であり、全ての内容を表示しているものではありません。</li>
       <li>本地図情報は、法的な効力を有する図面(公図、地積測量図、都市計画図その他これらに類するもの)ではありません。登記、許認可、契約、建築、測量、各種申請その他の法的な手続や判断の根拠として、本地図情報を使用することはできません。</li>
-      <li>法的な図面や詳細図面等の閲覧、正確な情報につきましては、<span class="t-dept">担当課</span>にてご確認ください。</li>
+      <li>法的な図面や詳細図面等の閲覧、正確な情報につきましては、{担当課}にてご確認ください。</li>
     </ol>
 
     <h2>第3条(情報の正確性等)</h2>
@@ -84,14 +102,9 @@
 
     <h2>第10条(準拠法・裁判管轄)</h2>
     <p>本規約は日本法に従って解釈されます。本サービスに関して紛争が生じた場合は、運営者の所在地を管轄する裁判所を第一審の専属的合意管轄裁判所とします。</p>
+  </template>
 
-    <div id="t-extra"></div>
-
-    <h2>お問い合わせ先</h2>
-    <p>運営者: <span class="t-org">本サービスの運営者</span><br>担当課: <span class="t-dept">担当課</span><span id="t-contact-row" hidden><br>連絡先: <span id="t-contact"></span></span></p>
-    <p class="date" id="t-date-row" hidden>制定日: <span id="t-date"></span></p>
-    <p class="back"><a href="./">← 地図に戻る</a></p>
-  </main>
+  <script src="js/common.js"></script>
   <script src="js/terms.js"></script>
 </body>
 </html>

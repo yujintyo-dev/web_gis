@@ -75,3 +75,48 @@ tr.off td { opacity: .5; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .msg { min-height: 1.4em; font-size: 13px; }
 .msg.ok { color: #2b8a3e; } .msg.ng { color: #c92a2a; }
+
+/* ---------- 利用規約・注意事項 ---------- */
+.badge.note { background: #fff4e6; color: #c2410c; }
+.badge.grp { background: #e5dbff; color: #5f3dc4; }
+.checks.col { flex-direction: column; gap: 6px; margin: 6px 0; }
+.checks.col label { align-items: flex-start; gap: 6px; }
+.tab-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 10px; }
+.tab-item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid #dee2e6; border-radius: 8px; cursor: pointer; background: #fff; }
+.tab-item:hover { background: #f8f9fa; }
+.tab-item.sel { border-color: #1c7ed6; background: #e7f5ff; }
+.tab-item .nm { flex: 1; font-weight: 600; }
+.tab-item .mv { border: 0; background: none; padding: 0 3px; color: #868e96; font-size: 12px; }
+.tab-kind { font-size: 11px; border-radius: 4px; padding: 1px 6px; font-weight: 700; }
+.tab-kind.main { background: #d0ebff; color: #1864ab; }
+.tab-kind.note { background: #ffe8cc; color: #c2410c; }
+.tab-edit { border: 2px solid #a5d8ff; border-radius: 10px; padding: 4px 14px 14px; margin: 14px 0 6px; background: #fbfdff; }
+textarea.doc-src { min-height: 260px; line-height: 1.6; }
+.howto { margin: 4px 0 8px 180px; font-size: 12px; }
+.howto summary { cursor: pointer; color: #1864ab; }
+.howto table { max-width: 620px; margin-top: 4px; }
+.layer-pick { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 260px; }
+.lp-cat { border: 1px solid #e9ecef; border-radius: 6px; padding: 4px 8px; }
+.lp-head { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+.doc-preview { border: 1px dashed #adb5bd; border-radius: 8px; padding: 6px 16px; max-height: 420px; overflow-y: auto; background: #fff; line-height: 1.75; }
+.doc h2 { font-size: 15px; margin: 14px 0 4px; padding-left: 8px; border-left: 4px solid #e8590c; border-bottom: 0; color: #212529; }
+.doc h3 { font-size: 14px; margin: 10px 0 4px; border: 0; }
+.doc p { margin: 6px 0; }
+.doc ul, .doc ol { margin: 4px 0; padding-left: 1.5em; }
+.doc .box, .doc .ref { background: #fff3bf; border: 1px solid #f0c36d; border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
+.doc .agree { background: #e7f5ff; border: 1px solid #a5d8ff; border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
+
+/* ---------- PDF資料 ---------- */
+input[type=text].wide { width: 520px; }
+.inl { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pdf-card { border: 1px solid #dee2e6; border-radius: 8px; padding: 6px 12px 10px; margin: 8px 0; background: #fcfcfd; }
+.pdf-head { display: flex; align-items: center; gap: 6px; }
+.pdf-head .sp { flex: 1; }
+.pdf-check { margin: 6px 0 0 180px; font-size: 12.5px; }
+.pdf-check .ok { color: #2b8a3e; font-weight: 600; }
+.pdf-check .ng { color: #c92a2a; font-weight: 600; }
+.pdf-check table.grid { max-width: 600px; }
+@media (max-width: 800px) { .howto, .pdf-check { margin-left: 0; } }
+.pu-links { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.pu-pdf { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid #a5d8ff; border-radius: 6px; background: #e7f5ff; color: #1864ab; font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.pu-pdf::before { content: "PDF"; font-size: 9.5px; font-weight: 800; color: #fff; background: #e03131; border-radius: 3px; padding: 1px 4px; }

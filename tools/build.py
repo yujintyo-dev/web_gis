@@ -11,6 +11,7 @@ GitHub Actions から自動実行されます(手元でも実行できます)。
 - 大きいデータは自動で「表示範囲だけ読み込む形式」に分割します
 - 前回と同じデータ・同じ変換設定なら、変換をスキップします(.cache を再利用)
 - 設定は config.json(管理画面で編集)。変換に関わる設定は layers.<id>.build に書きます
+- pdf/ フォルダのファイル(ポップアップからダウンロードさせるPDFなど)は、そのまま公開サイトにコピーします
 """
 import argparse
 import datetime
@@ -24,6 +25,7 @@ import shutil
 import base64
 import sys
 import tarfile
+import unicodedata
 import urllib.request
 import zipfile
 from collections import Counter, OrderedDict, defaultdict
@@ -433,6 +435,35 @@ def vendor_leaflet(out, cache):
     log("Leaflet %s を同梱しました" % LEAFLET_VERSION)
 
 
+# ---------------- PDF・資料ファイル ----------------
+PDF_WARN_MB = 300
+
+
+def copy_pdf(src_dir, out):
+    """pdf/ フォルダの中身を公開サイトにコピーし、ファイルの一覧(pdf/… の形)を返す。
+    Macで作ったファイル名(濁点が分かれた形)でもリンクできるよう、ファイル名をNFCにそろえる。"""
+    files = []
+    if not os.path.isdir(src_dir):
+        return files
+    total = 0
+    for root, dirs, fns in os.walk(src_dir):
+        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+        for fn in sorted(fns):
+            if fn.startswith(".") or fn.lower().startswith("readme"):
+                continue
+            p = os.path.join(root, fn)
+            rel = unicodedata.normalize("NFC", os.path.relpath(p, src_dir).replace(os.sep, "/"))
+            dst = os.path.join(out, "pdf", *rel.split("/"))
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copyfile(p, dst)
+            total += os.path.getsize(p)
+            files.append("pdf/" + rel)
+    log("PDF・資料: %d 件 (%.1f MB)" % (len(files), total / 1048576))
+    if total > PDF_WARN_MB * 1048576:
+        log("  ※ pdf フォルダが %d MB を超えています。GitHub Pages は公開サイト全体で 1GB までです" % PDF_WARN_MB)
+    return files
+
+
 # ---------------- メイン ----------------
 def main():
     ap = argparse.ArgumentParser()
@@ -441,6 +472,7 @@ def main():
     ap.add_argument("--out", default="_site")
     ap.add_argument("--cache", default=".cache")
     ap.add_argument("--root", default=".")
+    ap.add_argument("--pdf", default="pdf", help="ポップアップからダウンロードさせるPDFなどを置くフォルダ")
     ap.add_argument("--skip-vendor", action="store_true", help="Leafletの同梱を省略(通信できない環境でのテスト用)")
     a = ap.parse_args()
 
@@ -542,8 +574,10 @@ def main():
         p = os.path.join(a.cache, fn)
         if fn != "dl" and fn not in used and os.path.isdir(p):
             shutil.rmtree(p)
+    pdf_files = copy_pdf(a.pdf, a.out)
     with open(os.path.join(a.out, "manifest.json"), "w", encoding="utf-8") as fp:
-        json.dump({"version": 1, "generated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "layers": entries}, fp, ensure_ascii=False)
+        json.dump({"version": 1, "generated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                   "layers": entries, "pdfFiles": pdf_files}, fp, ensure_ascii=False)
     for fn in ("index.html", "admin.html", "terms.html"):
         p = os.path.join(a.root, fn)
         if os.path.exists(p):

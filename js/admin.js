@@ -5,7 +5,9 @@
   var manifest = { layers: [] };
   var config = {};
   var mById = {};
-  var sel = { t: 'global' };      // 選択中: global / maps / cat / layer
+  var sel = { t: 'global' };      // 選択中: global / maps / terms / cat / layer
+  var termsSel = null;            // 利用規約・注意事項: 編集中のタブID
+  var stdTermsCache = null;       // 標準の利用規約文(terms.html から読み込む)
   var tab = 'basic';
   var dirty = false;
   var lastInput = null;           // ポップアップの {項目} 挿入先
@@ -166,6 +168,7 @@
     nav.appendChild(h('div', { 'class': 'tree-top' }, [
       h('button', { type: 'button', text: '⚙ 全体設定(名前・初期位置)', onclick: function () { select({ t: 'global' }); } }),
       h('button', { type: 'button', text: '🔤 対応表(コード→名称)', onclick: function () { select({ t: 'maps' }); } }),
+      h('button', { type: 'button', text: '📄 利用規約・注意事項・案内帯', onclick: function () { select({ t: 'terms' }); } }),
       h('button', { type: 'button', text: '＋ カテゴリを追加', onclick: addCategory })
     ]));
     var root = GIS.buildTree(allCfgs(), config.categories);
@@ -187,13 +190,21 @@
       if (it.kind === 'layer') {
         var c = it.cfg;
         var badges = [];
+        var inGroup = GIS.groupPathOf(c.category, config.categories);
         if (c.hidden) badges.push(h('span', { 'class': 'badge', text: '非公開' }));
-        else if (c.visible) badges.push(h('span', { 'class': 'badge', text: '初期表示' }));
+        else if (c.visible && !inGroup) badges.push(h('span', { 'class': 'badge', text: '初期表示' }));
+        if (GIS.notesForLayers(GIS.termsTabs(config), [c.id]).length) badges.push(h('span', { 'class': 'badge note', text: '⚠', title: '注意事項あり' }));
+        if (c.pdf && c.pdf.length) badges.push(h('span', { 'class': 'badge', text: 'PDF' }));
         li.appendChild(h('div', { 'class': 'node' + selClass('layer', c.id), onclick: function () { select({ t: 'layer', id: c.id }); } },
           [h('span', { 'class': 'nm', text: '▭ ' + c.name })].concat(badges, mv)));
       } else {
+        var cb = [];
+        if (it.node.mode === 'group') {
+          cb.push(h('span', { 'class': 'badge grp', text: 'まとめ表示' }));
+          if (it.node.visible) cb.push(h('span', { 'class': 'badge', text: '初期表示' }));
+        }
         li.appendChild(h('div', { 'class': 'node' + selClass('cat', it.node.path), onclick: function () { select({ t: 'cat', path: it.node.path }); } },
-          [h('span', { 'class': 'nm', text: '📁 ' + it.node.title })].concat(mv)));
+          [h('span', { 'class': 'nm', text: (it.node.mode === 'group' ? '▤ ' : '📁 ') + it.node.title })].concat(cb, mv)));
         li.appendChild(nodeList(it.node));
       }
       ul.appendChild(li);
@@ -231,6 +242,7 @@
     lastInput = null;
     if (sel.t === 'global') editGlobal();
     else if (sel.t === 'maps') editMaps();
+    else if (sel.t === 'terms') editTerms();
     else if (sel.t === 'cat') editCat(sel.path);
     else editLayer(sel.id);
   }
@@ -245,23 +257,8 @@
     ed.appendChild(row('地図右下の出典表示', tIn([].concat(config.attribution || []).join(' / '), function (v) {
       setC(['attribution'], v.trim() ? v.split('/').map(function (x) { return x.trim(); }).filter(Boolean) : undefined);
     }, { ph: '例: 地番図: ○○市(令和8年) / 用途地域: △△県' }), '「 / 」で区切ると複数表示できます。データの提供元の表記ルールに従ってください'));
-    ed.appendChild(h('h3', { text: '画面下の案内帯(クリックで利用規約へ)' }));
-    var nc = config.notice || {};
-    ed.appendChild(row('案内帯を表示', chk(nc.enabled !== false, function (v) { setC(['notice', 'enabled'], v ? undefined : false); }), '参考図であることの案内です。通常は表示したままにしてください'));
-    var nta = h('textarea', { rows: 3, placeholder: DEFAULT_NOTICE });
-    nta.value = nc.text || '';
-    nta.addEventListener('change', function () { setC(['notice', 'text'], nta.value.trim()); });
-    ed.appendChild(row('案内文', nta, '空欄なら、標準の文言(参考図であること・担当課での確認のお願い)になります'));
-    ed.appendChild(h('h3', { text: '利用規約ページ(terms.html)に表示する情報' }));
-    var tm = config.terms || {};
-    ed.appendChild(row('運営者名', tIn(tm.org || '', function (v) { setC(['terms', 'org'], v); }, { ph: '例: ○○市' }), '空欄のときは「本サービスの運営者」と表示されます'));
-    ed.appendChild(row('担当課', tIn(tm.dept || '', function (v) { setC(['terms', 'dept'], v); }, { ph: '例: ○○課' }), '「担当課にてご確認ください」の部分に使われます。空欄のときは「担当課」と表示されます'));
-    ed.appendChild(row('連絡先', tIn(tm.contact || '', function (v) { setC(['terms', 'contact'], v); }, { ph: '例: 電話 000-000-0000 / メール xxx@example.jp' })));
-    ed.appendChild(row('制定日・改定日', tIn(tm.date || '', function (v) { setC(['terms', 'date'], v); }, { ph: '例: 2026年10月17日' })));
-    var eta = h('textarea', { rows: 4, placeholder: '1行が1つの段落になります' });
-    eta.value = tm.extra || '';
-    eta.addEventListener('change', function () { setC(['terms', 'extra'], eta.value.trim()); });
-    ed.appendChild(row('追記事項', eta, '自治体・組織の定めなど、規約に付け足したい文章(任意)'));
+    ed.appendChild(h('div', { 'class': 'info' }, ['画面下の案内帯・利用規約・レイヤーごとの注意事項は、左の「📄 利用規約・注意事項・案内帯」で設定します。 ',
+      h('button', { type: 'button', 'class': 'small', text: '開く', onclick: function () { select({ t: 'terms' }); } })]));
     ed.appendChild(h('h3', { text: '最初に表示する場所' }));
     ed.appendChild(h('p', { 'class': 'help', text: '下の地図を動かして、最初に見せたい位置とズームに合わせてください。' }));
     var mapDiv = h('div', { 'class': 'map-pick' });
@@ -357,12 +354,219 @@
     var cc = (config.categories || {})[path] || {};
     ed.appendChild(h('h2', { text: 'カテゴリ: ' + path }));
     ed.appendChild(row('表示名', tIn(cc.title || '', function (v) { setC(['categories', path, 'title'], v); renderTree(); }, { ph: path.split('/').pop() })));
-    ed.appendChild(row('最初から開いておく', chk(cc.open !== false, function (v) { setC(['categories', path, 'open'], v); })));
+
+    var outer = GIS.groupPathOf(path, config.categories);
+    ed.appendChild(h('h3', { text: '表示のしかた' }));
+    if (outer && outer !== path) {
+      ed.appendChild(h('div', { 'class': 'info', text: '上の階層のカテゴリ「' + outer + '」が「フォルダでまとめて表示」のため、このカテゴリの中身も、まとめて1つの項目として表示されます(ここでの表示のしかたの設定は使われません)。' }));
+    } else {
+      var grp = cc.mode === 'group';
+      ed.appendChild(h('div', { 'class': 'checks col' }, [
+        h('label', {}, [h('input', { type: 'radio', name: 'cmode', checked: !grp, onchange: function () { setC(['categories', path, 'mode'], undefined); renderTree(); renderEditor(); } }),
+          h('span', {}, [h('b', { text: 'レイヤーごとに表示' }), '(標準)… 利用者が中のレイヤーを1つずつ選べます'])]),
+        h('label', {}, [h('input', { type: 'radio', name: 'cmode', checked: grp, onchange: function () { setC(['categories', path, 'mode'], 'group'); renderTree(); renderEditor(); } }),
+          h('span', {}, [h('b', { text: 'フォルダでまとめて表示' }), ' … 中のレイヤー(下の階層を含む)を1つの項目として、まとめて表示/非表示します'])])
+      ]));
+      if (grp) {
+        var members = allCfgs().filter(function (c) { return c.category === path || String(c.category || '').indexOf(path + '/') === 0; });
+        ed.appendChild(row('最初から表示する', chk(cc.visible === true, function (v) { setC(['categories', path, 'visible'], v ? true : undefined); renderTree(); }),
+          'まとめて表示のときは、中のレイヤーの「最初から表示する」ではなく、この設定が使われます'));
+        var dta = h('textarea', { rows: 2, placeholder: '例: 想定最大規模の浸水深と、家屋倒壊等氾濫想定区域を重ねて表示します' });
+        dta.value = cc.description || '';
+        dta.addEventListener('change', function () { setC(['categories', path, 'description'], dta.value.trim()); });
+        ed.appendChild(row('説明文(任意)', dta, 'レイヤーパネルで、名前の下に小さく表示されます'));
+        ed.appendChild(h('div', { 'class': 'info' }, [
+          h('div', { text: 'まとめて表示されるレイヤー(' + members.length + '件): ' + (members.map(function (c) { return c.name + (c.hidden ? '(非公開)' : ''); }).join('、') || 'なし') }),
+          h('div', { text: '・透明度はまとめて変わります。凡例は中のレイヤーの凡例を並べて表示します' }),
+          h('div', { text: '・地図をクリックしたときのポップアップは、これまでどおりレイヤーごとに表示されます' }),
+          h('div', { text: '・地番検索などで中のレイヤーが表示されるときは、まとめて表示されます' })
+        ]));
+      }
+    }
+    ed.appendChild(h('h3', { text: 'その他' }));
+    ed.appendChild(row('最初から開いておく', chk(cc.open !== false, function (v) { setC(['categories', path, 'open'], v); }), '「レイヤーごとに表示」のときの、カテゴリの開閉の初期状態'));
     ed.appendChild(h('p', { 'class': 'help', html: 'レイヤーをこのカテゴリに入れるには、レイヤーの「カテゴリ」に <code>' + GIS.esc(path) + '</code> と入力します。<br>data フォルダ内のフォルダ名は、自動でカテゴリになります。' }));
     ed.appendChild(h('button', { type: 'button', 'class': 'danger small', text: 'カテゴリ設定を削除', onclick: function () {
-      if (!confirm('このカテゴリの設定(表示名・順序)を削除しますか?\n※ レイヤー自体は消えません')) return;
+      if (!confirm('このカテゴリの設定(表示名・順序・表示のしかた)を削除しますか?\n※ レイヤー自体は消えません')) return;
       delete (config.categories || {})[path]; changed(); select({ t: 'global' });
     } }));
+  }
+
+  // ---- 利用規約・注意事項・案内帯 ----
+  function tabsArr() {   // config.terms.tabs を、編集できる形にそろえる
+    config.terms = config.terms || {};
+    var cur = config.terms.tabs;
+    var norm = GIS.termsTabs(config);
+    if (!Array.isArray(cur) || cur.length !== norm.length || !cur.every(function (t, i) { return t && t.id === norm[i].id; })) {
+      config.terms.tabs = norm.map(function (t) {
+        var o = { id: t.id, title: t.title };
+        if (t.builtin) o.builtin = true;
+        if (t.body) o.body = t.body;
+        if (t.summary) o.summary = t.summary;
+        if (t.layers.length) o.layers = t.layers;
+        if (t.autoOpen) o.autoOpen = true;
+        if (t.hidden) o.hidden = true;
+        return o;
+      });
+    }
+    return config.terms.tabs;
+  }
+  function newTabId() { return 'note' + Date.now().toString(36); }
+  function loadStdTerms() {
+    if (stdTermsCache != null) return Promise.resolve(stdTermsCache);
+    return fetch('terms.html?t=' + Date.now()).then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); }).then(function (txt) {
+      var doc = new DOMParser().parseFromString(txt, 'text/html');
+      var tp = doc.getElementById('std-terms');
+      stdTermsCache = tp ? tp.innerHTML.replace(/^\s*\n/, '').replace(/\s+$/, '') + '\n' : '';
+      return stdTermsCache;
+    });
+  }
+
+  function editTerms() {
+    ed.appendChild(h('h2', { text: '利用規約・注意事項・案内帯' }));
+    ed.appendChild(h('p', { 'class': 'help', html: '利用規約ページ(<code>terms.html</code>)は、上部が<b>タブ</b>になっています。「利用規約」のほかに、レイヤーごとの<b>注意事項</b>のタブを追加できます。<br>' +
+      '注意事項にレイヤーを結び付けると、利用者がそのレイヤーを表示したときに、<b>画面下の案内帯に「⚠ 注意事項」ボタン</b>が出て、すぐに読めるようになります(レイヤーパネルとポップアップにもリンクが付きます)。' }));
+
+    // --- タブの一覧 ---
+    var tabs = tabsArr();
+    if (!termsSel || !tabs.some(function (t) { return t.id === termsSel; })) termsSel = tabs[0].id;
+    ed.appendChild(h('h3', { text: 'タブ(利用規約ページの上から順。▲▼で並べ替え)' }));
+    var list = h('div', { 'class': 'tab-list' });
+    tabs.forEach(function (t, i) {
+      var ls = (t.layers || []).length;
+      list.appendChild(h('div', { 'class': 'tab-item' + (t.id === termsSel ? ' sel' : ''), onclick: function () { termsSel = t.id; renderEditor(); } }, [
+        h('span', { 'class': 'tab-kind ' + (t.builtin ? 'main' : 'note'), text: t.builtin ? '規約' : '⚠ 注意' }),
+        h('span', { 'class': 'nm', text: t.title || '(無題)' }),
+        t.hidden ? h('span', { 'class': 'badge', text: '下書き' }) : null,
+        !t.builtin ? h('span', { 'class': 'badge', text: ls ? 'レイヤー ' + ls + '件' : 'レイヤー未設定' }) : null,
+        t.autoOpen ? h('span', { 'class': 'badge note', text: '自動表示' }) : null,
+        h('button', { type: 'button', 'class': 'mv', text: '▲', title: '上へ', onclick: function (e) { e.stopPropagation(); if (i > 0) { tabs.splice(i - 1, 0, tabs.splice(i, 1)[0]); changed(); renderEditor(); } } }),
+        h('button', { type: 'button', 'class': 'mv', text: '▼', title: '下へ', onclick: function (e) { e.stopPropagation(); if (i < tabs.length - 1) { tabs.splice(i + 1, 0, tabs.splice(i, 1)[0]); changed(); renderEditor(); } } })
+      ]));
+    });
+    ed.appendChild(list);
+    ed.appendChild(h('button', { type: 'button', text: '＋ 注意事項のタブを追加', onclick: function () {
+      var name = prompt('タブの名前を入力してください(例: 地番図について)');
+      if (!name || !name.trim()) return;
+      var t = { id: newTabId(), title: name.trim(), body: '## ' + name.trim() + '\n・ここに注意事項を書きます\n・1行が1項目になります', layers: [] };
+      tabs.push(t); termsSel = t.id; changed(); renderTree(); renderEditor();
+    } }));
+
+    // --- 選択中のタブの編集 ---
+    var t = tabs.filter(function (x) { return x.id === termsSel; })[0];
+    var card = h('div', { 'class': 'tab-edit' });
+    ed.appendChild(card);
+    card.appendChild(h('h3', { text: (t.builtin ? '利用規約タブ' : '注意事項タブ') + 'の編集: ' + (t.title || '') }));
+    function setT(k, v) { if (v === undefined || v === '' || v === false || (Array.isArray(v) && !v.length)) delete t[k]; else t[k] = v; changed(); }
+    card.appendChild(row('タブの名前', tIn(t.title || '', function (v) { setT('title', v.trim() || (t.builtin ? '利用規約' : '注意事項')); renderEditor(); })));
+
+    var ta = h('textarea', { rows: 16, 'class': 'doc-src' });
+    ta.value = t.body || '';
+    var pv = h('div', { 'class': 'doc-preview doc' });
+    function preview() {
+      var body = t.builtin && !t.body ? (stdTermsCache || '(標準の利用規約文を読み込み中…)') : (t.body || '');
+      pv.innerHTML = (t.summary && !t.builtin ? '<div class="box">' + GIS.esc(t.summary) + '</div>' : '') + GIS.renderDoc(body, GIS.docVars(config));
+    }
+    ta.addEventListener('input', function () { setT('body', ta.value.replace(/\s+$/, '') ? ta.value : undefined); preview(); });
+    var chips = h('div', { 'class': 'chips' }, ['{運営者}', '{担当課}', '{サイト名}', '{連絡先}'].map(function (k) {
+      return h('span', { 'class': 'chip', text: k, onclick: function () {
+        var p = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
+        ta.value = ta.value.slice(0, p) + k + ta.value.slice(ta.selectionEnd == null ? p : ta.selectionEnd);
+        ta.dispatchEvent(new Event('input')); ta.focus();
+      } });
+    }));
+    var howto = h('details', { 'class': 'howto' }, [h('summary', { text: '本文の書き方' }), h('div', { html:
+      '<table class="grid"><tr><th>書き方</th><th>表示</th></tr>' +
+      '<tr><td><code>## 見出し</code></td><td>見出し(<code>###</code> で小見出し)</td></tr>' +
+      '<tr><td><code>・項目</code> または <code>- 項目</code></td><td>箇条書き</td></tr>' +
+      '<tr><td><code>1. 項目</code></td><td>番号付きの箇条書き</td></tr>' +
+      '<tr><td><code>! 文章</code></td><td>黄色の囲み(特に注意してほしいこと)</td></tr>' +
+      '<tr><td>空行</td><td>段落の区切り(空行を入れずに改行すると、段落の中で改行)</td></tr>' +
+      '<tr><td><code>https://…</code></td><td>自動でリンクになります</td></tr>' +
+      '<tr><td><code>{担当課}</code> など</td><td>下の「利用規約ページに表示する情報」の値に置き換わります</td></tr></table>' +
+      '<p class="help">先頭が <code>&lt;</code> で始まる本文は、HTMLとして扱います(使えるタグは制限されます。スクリプトなどは動きません)。</p>' }) ]);
+
+    if (t.builtin) {
+      var custom = !!t.body;
+      card.appendChild(h('div', { 'class': 'checks col' }, [
+        h('label', {}, [h('input', { type: 'radio', name: 'tbody', checked: !custom, onchange: function () {
+          if (t.body && !confirm('編集した本文を破棄して、標準の利用規約文に戻しますか?')) { renderEditor(); return; }
+          setT('body', undefined); renderEditor();
+        } }), h('span', {}, [h('b', { text: '標準の利用規約文を使う' }), '(参考図であること・免責・禁止事項など10条)'])]),
+        h('label', {}, [h('input', { type: 'radio', name: 'tbody', checked: custom, onchange: function () {
+          loadStdTerms().then(function (std) { setT('body', std); renderEditor(); })
+            .catch(function () { alert('標準の利用規約文を読み込めませんでした。公開サイト(または _site)の admin.html から開いてください。'); renderEditor(); });
+        } }), h('span', {}, [h('b', { text: '文章を自分で編集する' }), '(標準の文を読み込んで、書き換えられます)'])])
+      ]));
+      if (custom) { card.appendChild(row('本文', ta)); card.appendChild(row('差し込み', chips)); card.appendChild(howto); }
+      var ex = h('textarea', { rows: 3, placeholder: '1行が1つの段落になります' });
+      ex.value = (config.terms || {}).extra || '';
+      ex.addEventListener('change', function () { setC(['terms', 'extra'], ex.value.trim()); });
+      card.appendChild(row('追記事項', ex, '自治体・組織の定めなど、規約の最後に「追記事項」として付け足す文章(任意)'));
+    } else {
+      card.appendChild(row('本文', ta));
+      card.appendChild(row('差し込み', chips));
+      card.appendChild(howto);
+      var sm = h('textarea', { rows: 2, placeholder: '例: 地番図は公図をもとにした参考図です。境界や面積の確認には使えません。' });
+      sm.value = t.summary || '';
+      sm.addEventListener('input', function () { setT('summary', sm.value.trim()); preview(); });
+      card.appendChild(row('要点(1〜2文)', sm, '注意事項の先頭に黄色の囲みで表示され、印刷した地図の注意書きにも入ります(任意)'));
+
+      // 対象のレイヤー(カテゴリごと)
+      var cfgs = allCfgs().filter(function (c) { return !c.hidden; });
+      var byCat = {};
+      cfgs.forEach(function (c) { (byCat[c.category || '(カテゴリなし)'] = byCat[c.category || '(カテゴリなし)'] || []).push(c); });
+      var lw = h('div', { 'class': 'layer-pick' });
+      Object.keys(byCat).sort().forEach(function (cat) {
+        var ids = byCat[cat].map(function (c) { return c.id; });
+        var all = ids.every(function (x) { return (t.layers || []).indexOf(x) >= 0; });
+        lw.appendChild(h('div', { 'class': 'lp-cat' }, [
+          h('label', { 'class': 'lp-head' }, [chk(all, function (v) {
+            var arr = (t.layers || []).filter(function (x) { return ids.indexOf(x) < 0; });
+            if (v) arr = arr.concat(ids);
+            setT('layers', arr); renderTree(); renderEditor();
+          }), h('b', { text: cat + (GIS.groupPathOf(cat, config.categories) ? '(まとめ表示)' : '') })]),
+          h('div', { 'class': 'checks' }, byCat[cat].map(function (c) {
+            return h('label', {}, [chk((t.layers || []).indexOf(c.id) >= 0, function (v) {
+              var arr = (t.layers || []).slice(), k = arr.indexOf(c.id);
+              if (v && k < 0) arr.push(c.id); if (!v && k >= 0) arr.splice(k, 1);
+              setT('layers', arr); renderTree(); renderEditor();
+            }), c.name]);
+          }))
+        ]));
+      });
+      card.appendChild(row('対象のレイヤー', lw, 'チェックしたレイヤーが表示されているとき、案内帯に「⚠ ' + (t.title || '') + '」ボタンが出ます'));
+      card.appendChild(row('自動で表示する', chk(t.autoOpen === true, function (v) { setT('autoOpen', v ? true : undefined); renderTree(); }),
+        '対象のレイヤーが初めて表示されたとき(最初から表示されている場合を含む)、この注意事項を地図の上に自動で開きます。ブラウザのタブを閉じるまで1回だけです'));
+    }
+    card.appendChild(row('下書き(公開しない)', chk(t.hidden === true, function (v) { setT('hidden', v ? true : undefined); renderTree(); renderEditor(); }), 'チェックすると、公開サイトには表示されません'));
+    card.appendChild(h('h3', { text: 'プレビュー' }));
+    card.appendChild(pv);
+    if (t.builtin && !t.body) loadStdTerms().then(preview).catch(function () { stdTermsCache = '(標準の利用規約文を読み込めませんでした)'; preview(); });
+    preview();
+    var link = h('p', { 'class': 'help' }, ['公開サイトでは ', h('code', { text: 'terms.html#' + t.id }), ' でこのタブを直接開けます。']);
+    card.appendChild(link);
+    if (!t.builtin) card.appendChild(h('button', { type: 'button', 'class': 'danger small', text: 'このタブを削除', onclick: function () {
+      if (!confirm('タブ「' + t.title + '」を削除しますか?')) return;
+      tabs.splice(tabs.indexOf(t), 1); termsSel = null; changed(); renderTree(); renderEditor();
+    } }));
+
+    // --- 案内帯 ---
+    ed.appendChild(h('h3', { text: '画面下の案内帯(クリックで利用規約へ)' }));
+    var nc = config.notice || {};
+    ed.appendChild(row('案内帯を表示', chk(nc.enabled !== false, function (v) { setC(['notice', 'enabled'], v ? undefined : false); }), '参考図であることの案内です。通常は表示したままにしてください(オフにしても、注意事項のボタンは表示されます)'));
+    var nta = h('textarea', { rows: 3, placeholder: DEFAULT_NOTICE });
+    nta.value = nc.text || '';
+    nta.addEventListener('change', function () { setC(['notice', 'text'], nta.value.trim()); });
+    ed.appendChild(row('案内文', nta, '空欄なら、標準の文言(参考図であること・担当課での確認のお願い)になります'));
+
+    // --- 規約ページに出す情報 ---
+    ed.appendChild(h('h3', { text: '利用規約ページに表示する情報(本文の {運営者} などにも使われます)' }));
+    var tm = config.terms || {};
+    ed.appendChild(row('運営者名 {運営者}', tIn(tm.org || '', function (v) { setC(['terms', 'org'], v); preview(); }, { ph: '例: ○○市' }), '空欄のときは「本サービスの運営者」と表示されます'));
+    ed.appendChild(row('担当課 {担当課}', tIn(tm.dept || '', function (v) { setC(['terms', 'dept'], v); preview(); }, { ph: '例: ○○課' }), '空欄のときは「担当課」と表示されます'));
+    ed.appendChild(row('連絡先 {連絡先}', tIn(tm.contact || '', function (v) { setC(['terms', 'contact'], v); preview(); }, { ph: '例: 電話 000-000-0000 / メール xxx@example.jp' })));
+    ed.appendChild(row('制定日・改定日', tIn(tm.date || '', function (v) { setC(['terms', 'date'], v); }, { ph: '例: 2026年10月17日' })));
   }
 
   // ---- レイヤー ----
@@ -379,7 +583,7 @@
     if (m && m.keepAll && (m.sourceFields || []).length) {
       ed.appendChild(h('div', { 'class': 'err', text: '⚠ このレイヤーは元データの全属性(' + m.sourceFields.length + '個)を公開しています。ポップアップに出していない属性も、データを直接取得すれば誰でも見られます。「データ変換」タブで公開する属性を絞り込めます。' }));
     }
-    var tabs = [['basic', '基本'], ['style', '見た目'], ['popup', 'ポップアップ'], ['dl', 'ダウンロード・検索']];
+    var tabs = [['basic', '基本'], ['style', '見た目'], ['popup', 'ポップアップ'], ['pdf', 'PDF資料'], ['dl', 'ダウンロード・検索']];
     if (m) tabs.push(['build', 'データ変換']);
     ed.appendChild(h('div', { 'class': 'tabs' }, tabs.map(function (t) {
       return h('button', { type: 'button', 'class': tab === t[0] ? 'on' : '', text: t[1], onclick: function () { tab = t[0]; renderEditor(); } });
@@ -390,6 +594,7 @@
     else if (tab === 'style') tabStyle(box, id, e, m);
     else if (tab === 'popup') tabPopup(box, id, e, m);
     else if (tab === 'dl') tabDl(box, id, e, m);
+    else if (tab === 'pdf') tabPdf(box, id, e, m);
     else if (tab === 'build' && m) tabBuild(box, id, e, m);
     ed.appendChild(h('p'));
     ed.appendChild(h('button', { type: 'button', 'class': 'danger small', text: 'このレイヤーの設定を初期状態に戻す', onclick: function () {
@@ -409,7 +614,14 @@
     box.appendChild(row('カテゴリ', tIn(e.category || '', function (v) {
       setL(id, ['category'], v.trim().replace(/^\/+|\/+$/g, ''), true); renderTree();
     }, { list: 'cats', ph: '(なし=一番上の階層)' }), '「親/子」のように / で階層にできます'));
-    box.appendChild(row('最初から表示する', chk(e.visible === true, function (v) { setL(id, ['visible'], v); renderTree(); })));
+    var gp = GIS.groupPathOf(e.category, config.categories);
+    if (gp) {
+      box.appendChild(h('div', { 'class': 'info' }, ['このレイヤーは、カテゴリ「' + gp + '」で',
+        h('b', { text: 'まとめて表示' }), 'されます(利用者は個別に選べません)。最初から表示するかどうかは、カテゴリの設定に従います。 ',
+        h('button', { type: 'button', 'class': 'small', text: 'カテゴリの設定を開く', onclick: function () { select({ t: 'cat', path: gp }); } })]));
+    } else {
+      box.appendChild(row('最初から表示する', chk(e.visible === true, function (v) { setL(id, ['visible'], v); renderTree(); })));
+    }
     box.appendChild(row('表示を始めるズーム', tIn(e.minZoom, function (v) { setL(id, ['minZoom'], v); }, { type: 'number', min: 0, max: 22 }),
       '大きいデータは、拡大したときだけ表示すると軽くなります'));
     if (e.type === 'tiles') box.appendChild(row('同時に読み込む区画の上限', tIn(e.maxTiles, function (v) { setL(id, ['maxTiles'], v); }, { type: 'number', ph: '80' }),
@@ -418,6 +630,13 @@
     box.appendChild(row('データ時点の表示', tIn(e.updatedLabel || '', function (v) { setL(id, ['updatedLabel'], v); }, { ph: e.updated || '例: 令和8年1月' }),
       '空欄なら、自動変換した日付を表示します'));
     box.appendChild(row('サイトに出さない(非公開)', chk(e.hidden === true, function (v) { setL(id, ['hidden'], v ? true : undefined); renderTree(); })));
+    var notes = GIS.notesForLayers(GIS.termsTabs(config), [id]);
+    box.appendChild(h('h3', { text: '注意事項' }));
+    box.appendChild(h('div', { 'class': 'info' }, [
+      notes.length ? 'このレイヤーには、注意事項「' + notes.map(function (t) { return t.title; }).join('」「') + '」が結び付いています。' : 'このレイヤーに結び付いた注意事項はありません。',
+      '注意事項は「📄 利用規約・注意事項・案内帯」でタブとして作り、対象のレイヤーを選びます。 ',
+      h('button', { type: 'button', 'class': 'small', text: '利用規約・注意事項を開く', onclick: function () { if (notes.length) termsSel = notes[0].id; select({ t: 'terms' }); } })
+    ]));
   }
 
   function tabStyle(box, id, e, m) {
@@ -599,10 +818,134 @@
     var pick = sel_('0', samples.map(function (_, i) { return { v: String(i), t: 'サンプル' + (i + 1) }; }), function (v) { si = Number(v); show(); });
     function show() {
       var cfg = eff(id);
-      pv.innerHTML = samples.length ? GIS.popupSectionHtml(cfg, samples[si], config.valueMaps) : '<span class="help">サンプルデータがありません</span>';
+      pv.innerHTML = samples.length ? GIS.popupSectionHtml(cfg, samples[si], config.valueMaps, { files: pdfFileSet() }) : '<span class="help">サンプルデータがありません</span>';
     }
     previewFn = show;
     box.appendChild(h('h3', { text: 'プレビュー' }));
+    if (samples.length) box.appendChild(pick);
+    box.appendChild(pv);
+    show();
+  }
+
+  // ---- PDF資料(ポップアップに、属性ごとのPDFのリンクを出す)----
+  function pdfFileSet() {
+    if (!Array.isArray(manifest.pdfFiles)) return null;
+    var o = {};
+    manifest.pdfFiles.forEach(function (p) { o[String(p).normalize('NFC')] = true; });
+    return o;
+  }
+  function tplKeys(tpl) {
+    var ks = [], re = /\{([^}:]+)(?::([^}]+))?\}/g, mm;
+    while ((mm = re.exec(String(tpl || ''))) !== null) ks.push({ key: mm[1], map: mm[2] });
+    return ks;
+  }
+  function tabPdf(box, id, e, m) {
+    var files = pdfFileSet();
+    var links = ((cl(id) || {}).pdf || []);
+    var lname = String(e.name || id.split('/').pop()).replace(/[\\\/:*?"<>|]/g, '_');
+    box.appendChild(h('p', { 'class': 'help', html:
+      '地図をクリックしたときのポップアップに、<b>図形ごと(属性の値ごと)に違うPDF</b>へのリンクを出します。<br>' +
+      '① リポジトリの <code>pdf</code> フォルダに、属性の値をファイル名にしたPDFを置きます(例: <code>pdf/' + GIS.esc(lname) + '/1.pdf</code>、<code>pdf/' + GIS.esc(lname) + '/2.pdf</code> …)<br>' +
+      '② 下の「ファイルの場所」に <code>pdf/' + GIS.esc(lname) + '/{属性名}.pdf</code> のように書きます。<code>{属性名}</code> が図形ごとの値に置き換わります<br>' +
+      '③ <b>ファイルがある図形にだけ</b>リンクが表示されます(ファイルが無い図形には何も出ません)<br>' +
+      '市のホームページなど外部に置いたPDFは、<code>https://…/{属性名}.pdf</code> のようにURLで書けます(この場合は存在の確認はできません)。' }));
+    if (!files) box.appendChild(h('div', { 'class': 'err', text: 'manifest.json に PDF の一覧がありません。新しい tools/build.py でビルドし直すと、ファイルの有無を確認できます。' }));
+    else box.appendChild(h('div', { 'class': 'info', text: '公開サイトの pdf フォルダにあるファイル: ' + manifest.pdfFiles.length + '件' }));
+
+    function save(arr) { setL(id, ['pdf'], arr.length ? arr : undefined); renderTree(); }
+    var fl = fieldsOf(id);
+    // かんたん作成
+    var pickF = sel_('', [{ v: '', t: '(属性を選ぶ)' }].concat(fl.map(function (f) { return { v: f.name, t: f.name + (f.samples && f.samples[0] != null ? '(例: ' + f.samples[0] + ')' : '') }; })), function () {});
+    box.appendChild(h('h3', { text: 'リンクを追加' }));
+    box.appendChild(row('属性から作る', h('span', { 'class': 'inl' }, [pickF, h('button', { type: 'button', text: '＋ 追加', onclick: function () {
+      if (!pickF.value) { alert('ファイル名に使う属性を選んでください'); return; }
+      var arr = links.slice();
+      arr.push({ href: 'pdf/' + lname + '/{' + pickF.value + '}.pdf', text: '' });
+      save(arr); renderEditor();
+    } })]), 'ファイルの場所が「pdf/' + lname + '/{属性}.pdf」のリンクを追加します(あとで書き換えられます)'));
+    box.appendChild(h('button', { type: 'button', 'class': 'small', text: '＋ 空のリンクを追加(URLなどを自分で書く)', onclick: function () {
+      var arr = links.slice(); arr.push({ href: '', text: '' }); save(arr); renderEditor();
+    } }));
+
+    box.appendChild(h('h3', { text: 'リンクの一覧(ポップアップに上から順に表示)' }));
+    if (!links.length) box.appendChild(h('p', { 'class': 'help', text: 'まだリンクはありません。' }));
+    var samples = (m && m.sampleRows) || [];
+    links.forEach(function (lk, i) {
+      var card = h('div', { 'class': 'pdf-card' });
+      function upd(k, v) { var arr = JSON.parse(JSON.stringify(links)); if (v === '' || v == null) delete arr[i][k]; else arr[i][k] = v; save(arr); }
+      var href = tIn(lk.href || '', function (v) { upd('href', v.trim()); renderEditor(); }, { ph: 'pdf/' + lname + '/{属性名}.pdf' });
+      href.classList.add('wide');
+      var text = tIn(lk.text || '', function (v) { upd('text', v); renderEditor(); }, { ph: GIS.DEFAULT_PDF_TEXT });
+      card.appendChild(h('div', { 'class': 'pdf-head' }, [
+        h('b', { text: 'リンク ' + (i + 1) }),
+        h('span', { 'class': 'sp' }),
+        h('button', { type: 'button', 'class': 'small', text: '▲', onclick: function () { if (i > 0) { var a = links.slice(); a.splice(i - 1, 0, a.splice(i, 1)[0]); save(a); renderEditor(); } } }),
+        h('button', { type: 'button', 'class': 'small', text: '▼', onclick: function () { if (i < links.length - 1) { var a = links.slice(); a.splice(i + 1, 0, a.splice(i, 1)[0]); save(a); renderEditor(); } } }),
+        h('button', { type: 'button', 'class': 'small danger', text: '削除', onclick: function () { if (!confirm('リンク ' + (i + 1) + ' を削除しますか?')) return; var a = links.slice(); a.splice(i, 1); save(a); renderEditor(); } })
+      ]));
+      card.appendChild(row('リンクの文字', text, '空欄なら「' + GIS.DEFAULT_PDF_TEXT + '」。{属性名} も使えます(例: {YoutoName}の詳細)'));
+      card.appendChild(row('ファイルの場所', href, 'pdf フォルダからの場所、または https:// で始まるURL。{属性名:対応表名} で対応表の名称も使えます'));
+      card.appendChild(row('項目を差し込む', h('div', { 'class': 'chips' }, fl.map(function (f) {
+        return h('span', { 'class': 'chip', text: '{' + f.name + '}', onclick: function () {
+          var p = href.selectionStart == null ? href.value.length : href.selectionStart;
+          href.value = href.value.slice(0, p) + '{' + f.name + '}' + href.value.slice(href.selectionEnd == null ? p : href.selectionEnd);
+          href.dispatchEvent(new Event('change'));
+        } });
+      }))));
+      card.appendChild(row('開き方', sel_(lk.open === 'tab' ? 'tab' : '', [{ v: '', t: 'ダウンロードする' }, { v: 'tab', t: 'ブラウザの新しいタブで開く' }], function (v) { upd('open', v || undefined); })));
+
+      // ファイルの有無の確認
+      if (!lk.href) { box.appendChild(card); return; }
+      var res = GIS.resolveDocLink(lk, {}, config.valueMaps);
+      var ks = tplKeys(lk.href);
+      var chk_ = h('div', { 'class': 'pdf-check' });
+      var external = /^https?:\/\//i.test(lk.href.trim());
+      if (!external && !ks.length && res) {
+        chk_.appendChild(h('div', { text: '※ {属性名} が入っていないため、すべての図形で同じファイル(' + res.path + ')になります' + (files ? (files[res.path] ? ' ✓ ファイルあり' : ' ✗ ファイルが見つかりません') : '') }));
+      }
+      // 値の一覧(属性が1つで、値の種類が分かる場合)で確認
+      var f1 = ks.length === 1 ? fl.filter(function (f) { return f.name === ks[0].key; })[0] : null;
+      if (!external && files && f1 && f1.unique && f1.unique.length) {
+        var ok = [], ng = [];
+        f1.unique.forEach(function (u) {
+          var pr = {}; pr[f1.name] = u[0];
+          var r = GIS.resolveDocLink(lk, pr, config.valueMaps);
+          if (r && files[r.path]) ok.push(u[0]); else if (r) ng.push(r.path.split('/').pop());
+        });
+        chk_.appendChild(h('div', { 'class': ok.length ? 'ok' : 'ng', text: '属性「' + f1.name + '」の値 ' + f1.unique.length + '種類のうち、ファイルがあるもの: ' + ok.length + '種類' }));
+        if (ng.length) chk_.appendChild(h('div', { 'class': 'help', text: 'ファイルが無い値(リンクは出ません): ' + ng.slice(0, 15).join('、') + (ng.length > 15 ? ' ほか' + (ng.length - 15) + '件' : '') }));
+      } else if (samples.length) {
+        var t = h('table', { 'class': 'grid' }, [h('tr', {}, [h('th', { text: 'サンプル' }), h('th', { text: 'ファイル' }), h('th', { text: '有無' })])]);
+        samples.forEach(function (sp, si) {
+          var r = GIS.resolveDocLink(lk, sp, config.valueMaps);
+          var st = !r ? '属性が空のためリンクなし' : external ? '(外部URLのため確認できません)' : !files ? '(確認できません)' : files[r.path] ? '✓ あり' : '✗ 見つかりません';
+          t.appendChild(h('tr', {}, [h('td', { text: 'サンプル' + (si + 1) }), h('td', { 'class': 'k', text: r ? r.path : '-' }), h('td', { text: st })]));
+        });
+        chk_.appendChild(t);
+      }
+      // 同じフォルダにあるファイル
+      if (!external && files && res !== undefined) {
+        var dir = String(lk.href).trim().replace(/^\.?\/+/, '').split('{')[0].replace(/[^\/]*$/, '');
+        if (!/^pdf\//.test(dir)) dir = 'pdf/' + dir;
+        var inDir = manifest.pdfFiles.filter(function (p) { return String(p).normalize('NFC').indexOf(dir.normalize('NFC')) === 0; });
+        chk_.appendChild(h('div', { 'class': 'help', text: '「' + dir + '」にあるファイル: ' + inDir.length + '件' + (inDir.length ? '(' + inDir.slice(0, 8).map(function (p) { return p.slice(dir.length); }).join('、') + (inDir.length > 8 ? ' …' : '') + ')' : '') }));
+      }
+      card.appendChild(chk_);
+      box.appendChild(card);
+    });
+
+    box.appendChild(h('div', { 'class': 'info', html: '<b>ファイル名の注意</b>: 属性の値とファイル名が、全角/半角・拡張子の大文字/小文字(.pdf と .PDF)まで一致している必要があります。<br>' +
+      '値に使えない文字(<code>/ \\ : * ? " &lt; &gt; |</code>)は <code>_</code> に置き換えて探します。<br>' +
+      '値とファイル名が対応しない場合は、「対応表」で <code>値=ファイル名</code> の表を作り、<code>pdf/' + GIS.esc(lname) + '/{属性名:対応表名}.pdf</code> と書きます。<br>' +
+      'PDFを置いたら Commit すると、数分後に公開サイトに反映されます(1ファイル100MBまで。サイト全体で1GBまで)。' }));
+
+    // プレビュー
+    var pv = h('div', { 'class': 'preview' });
+    var si = 0;
+    var pick = sel_('0', samples.map(function (_, i) { return { v: String(i), t: 'サンプル' + (i + 1) }; }), function (v) { si = Number(v); show(); });
+    function show() { pv.innerHTML = samples.length ? GIS.popupSectionHtml(eff(id), samples[si], config.valueMaps, { files: files }) : '<span class="help">サンプルデータがありません</span>'; }
+    previewFn = show;
+    box.appendChild(h('h3', { text: 'ポップアップのプレビュー(ファイルがあるリンクだけ表示)' }));
     if (samples.length) box.appendChild(pick);
     box.appendChild(pv);
     show();
