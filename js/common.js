@@ -17,7 +17,7 @@
     var out = {}, k;
     for (k in a) out[k] = a[k];
     for (k in b) {
-      if (b[k] === undefined) continue;
+      if (b[k] === undefined || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;   // 設定ファイルに特殊な名前があっても、仕組みを書き換えさせない
       out[k] = (isObj(out[k]) && isObj(b[k])) ? deepMerge(out[k], b[k]) : b[k];
     }
     return out;
