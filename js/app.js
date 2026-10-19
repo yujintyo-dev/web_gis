@@ -779,7 +779,9 @@
       if (!st.searchIndex) return;
       var names = Object.keys(st.searchIndex.shards).filter(function (c) { return hasGroupName(st, c); })
         .map(function (c) { return groupName(st, c); }).sort(function (a, b) { return a.localeCompare(b, 'ja'); });
-      searchExample = (names.length ? names[0] : '大字名') + ' 1117-18';
+      // 例: 管理画面の「検索欄の例」があればそれを使い、なければ対応表の最初の大字名で作る
+      var custom = String(conf.searchExample || '').trim();
+      searchExample = custom || ((names.length ? names[0] : '大字名') + ' 1117-18');
       $('search-input').setAttribute('placeholder', '地番を検索(例: ' + searchExample + ')');
       var hint = $('search-hint');
       hint.innerHTML = '地番だけでも検索できます。<b>大字名と地番をスペースで区切る</b>と、大字を絞り込めます。<br>例: <b>' + esc(searchExample) + '</b>';

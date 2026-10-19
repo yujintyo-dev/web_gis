@@ -253,6 +253,8 @@
     var c = m.center || [36, 138];
     ed.appendChild(h('h2', { text: '全体設定' }));
     ed.appendChild(row('サイトの名前', tIn(config.title || '', function (v) { setC(['title'], v); }), 'ブラウザのタブに表示されます'));
+    ed.appendChild(row('検索欄の例', tIn(config.searchExample || '', function (v) { setC(['searchExample'], v.trim()); }, { ph: '例: 今市本町 1-1(空欄なら自動)' }),
+      '検索欄の薄い文字と、検索欄の下の案内に「例: ○○」として表示されます。大字名と地番の間はスペースで区切ってください'));
     ed.appendChild(row('データ更新日を表示', chk(config.showUpdated !== false, function (v) { setC(['showUpdated'], v); })));
     ed.appendChild(row('地図右下の出典表示', tIn([].concat(config.attribution || []).join(' / '), function (v) {
       setC(['attribution'], v.trim() ? v.split('/').map(function (x) { return x.trim(); }).filter(Boolean) : undefined);
