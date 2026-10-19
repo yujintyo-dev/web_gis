@@ -120,28 +120,13 @@ html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Hi
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 1200;
   padding-bottom: env(safe-area-inset-bottom, 0px); background: #fff3bf; border-top: 1px solid #f0c36d;
 }
-#notice[hidden], #notice-main[hidden], #notice-notes[hidden] { display: none; }
+#notice[hidden], #notice-main[hidden] { display: none; }
 #notice-main {
   display: block; text-align: center; color: #5c3d00; text-decoration: none;
   font-size: 12px; line-height: 1.5; padding: 5px 10px;
 }
 #notice-main:hover { background: #ffec99; }
 #notice .notice-link { color: #1864ab; font-weight: 700; text-decoration: underline; white-space: nowrap; }
-/* 表示中のレイヤーの注意事項(案内帯の上段) */
-#notice-notes {
-  display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: #ffe8cc; border-bottom: 1px solid #ffc078;
-  overflow-x: auto; white-space: nowrap; scrollbar-width: thin;
-}
-.nn-lead { font-size: 11px; font-weight: 700; color: #a34700; flex: none; }
-#nn-list { display: flex; gap: 6px; flex: none; }
-.nn-chip {
-  font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 14px; cursor: pointer;
-  border: 1px solid #e8590c; background: #fff; color: #c2410c; white-space: nowrap;
-}
-.nn-chip:hover { background: #fff4e6; }
-.nn-chip.new { animation: nn-flash 1s ease-in-out 3; }
-@keyframes nn-flash { 50% { background: #e8590c; color: #fff; } }
-@media (prefers-reduced-motion: reduce) { .nn-chip.new { animation: none; } }
 .panel-foot { margin: 14px 0 0; font-size: 13px; }
 
 /* パネル内: 注意事項ボタン・まとめて表示 */

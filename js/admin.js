@@ -427,7 +427,7 @@
   function editTerms() {
     ed.appendChild(h('h2', { text: '利用規約・注意事項・案内帯' }));
     ed.appendChild(h('p', { 'class': 'help', html: '利用規約ページ(<code>terms.html</code>)は、上部が<b>タブ</b>になっています。「利用規約」のほかに、レイヤーごとの<b>注意事項</b>のタブを追加できます。<br>' +
-      '注意事項にレイヤーを結び付けると、利用者がそのレイヤーを表示したときに、<b>画面下の案内帯に「⚠ 注意事項」ボタン</b>が出て、すぐに読めるようになります(レイヤーパネルとポップアップにもリンクが付きます)。' }));
+      '注意事項にレイヤーを結び付けると、利用者がそのレイヤーを表示したときに、<b>レイヤーパネルとポップアップに「⚠ 注意事項」のリンク</b>が付き、すぐに読めるようになります(「自動で表示する」にすると、レイヤーを初めて表示したときに地図の上に開きます)。' }));
 
     // --- タブの一覧 ---
     var tabs = tabsArr();
@@ -537,7 +537,7 @@
           }))
         ]));
       });
-      card.appendChild(row('対象のレイヤー', lw, 'チェックしたレイヤーが表示されているとき、案内帯に「⚠ ' + (t.title || '') + '」ボタンが出ます'));
+      card.appendChild(row('対象のレイヤー', lw, 'チェックしたレイヤーの、レイヤーパネルとポップアップに「⚠ ' + (t.title || '') + '」のリンクが付きます'));
       card.appendChild(row('自動で表示する', chk(t.autoOpen === true, function (v) { setT('autoOpen', v ? true : undefined); renderTree(); }),
         '対象のレイヤーが初めて表示されたとき(最初から表示されている場合を含む)、この注意事項を地図の上に自動で開きます。ブラウザのタブを閉じるまで1回だけです'));
     }
@@ -556,7 +556,7 @@
     // --- 案内帯 ---
     ed.appendChild(h('h3', { text: '画面下の案内帯(クリックで利用規約へ)' }));
     var nc = config.notice || {};
-    ed.appendChild(row('案内帯を表示', chk(nc.enabled !== false, function (v) { setC(['notice', 'enabled'], v ? undefined : false); }), '参考図であることの案内です。通常は表示したままにしてください(オフにしても、注意事項のボタンは表示されます)'));
+    ed.appendChild(row('案内帯を表示', chk(nc.enabled !== false, function (v) { setC(['notice', 'enabled'], v ? undefined : false); }), '参考図であることの案内です。通常は表示したままにしてください'));
     var nta = h('textarea', { rows: 3, placeholder: DEFAULT_NOTICE });
     nta.value = nc.text || '';
     nta.addEventListener('change', function () { setC(['notice', 'text'], nta.value.trim()); });

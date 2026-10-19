@@ -639,7 +639,7 @@
   // ================= 注意事項(利用規約ページのタブと連動) =================
   var noteTabs = [];        // 公開中のタブ(利用規約・注意事項)
   var docVars = {};
-  var shownNotes = {};      // 案内帯に出したことのある注意事項(新しく出たものを目立たせる)
+  var shownNotes = {};      // 自動で表示した注意事項(sessionStorage が使えないときの記録)
   function notesOf(list) {
     var ids = list.filter(Boolean).map(function (s) { return s.cfg.id; });
     return GIS.notesForLayers(noteTabs, ids);
@@ -648,23 +648,9 @@
   function wasAutoShown(id) { try { return sessionStorage.getItem('gis_note_' + id) === '1'; } catch (e) { return !!shownNotes['auto_' + id]; } }
   function markAutoShown(id) { shownNotes['auto_' + id] = true; try { sessionStorage.setItem('gis_note_' + id, '1'); } catch (e) {} }
 
-  // 画面下の案内帯に、表示中のレイヤーの注意事項ボタンを並べる
+  // 表示中のレイヤーが変わったとき: 「自動で表示する」注意事項を開く
   function updateNotes() {
     var list = activeNotes();
-    var box = $('nn-list');
-    box.innerHTML = '';
-    list.forEach(function (t) {
-      var b = document.createElement('button');
-      b.type = 'button'; b.className = 'nn-chip' + (shownNotes[t.id] ? '' : ' new');
-      b.textContent = '⚠ ' + t.title;
-      b.title = t.summary || 'クリックで注意事項を表示';
-      b.addEventListener('click', function () { openNotes(t.id, activeNotes()); });
-      box.appendChild(b);
-      shownNotes[t.id] = true;
-    });
-    $('notice-notes').hidden = !list.length;
-    $('notice').hidden = $('notice-main').hidden && !list.length;
-    syncNotice();
     // 「初めて表示したときに自動で表示」の注意事項(このタブを閉じるまで1回だけ)
     if (!printOn && $('note-modal').hidden) {
       var auto = list.filter(function (t) { return t.autoOpen && !wasAutoShown(t.id); });
