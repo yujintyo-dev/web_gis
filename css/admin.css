@@ -127,3 +127,5 @@ ol.steps { margin: 6px 0 10px; padding-left: 1.4em; line-height: 1.8; }
 .img-pick { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 260px; }
 .img-pick small { margin-left: 0 !important; }
 .img-pick input[type=text] { width: 220px; }
+.note-contact { margin: 14px 0 4px; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 8px; background: #f8f9fa; font-size: 13.5px; line-height: 1.7; }
+.note-contact .nc-h { font-weight: 700; color: #495057; }
