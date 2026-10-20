@@ -28,7 +28,6 @@
     }
     var ls = t.layers.map(function (id) { return names[id] || id.split('/').pop(); });
     if (ls.length) html += '<p class="target">対象のレイヤー: ' + ls.map(GIS.esc).join('、') + '</p>';
-    if (t.summary) html += '<div class="box">' + GIS.esc(t.summary) + '</div>';
     return html + GIS.renderDoc(t.body, vars);
   }
 

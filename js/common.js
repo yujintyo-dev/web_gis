@@ -50,12 +50,20 @@
   };
 
   // HTMLの無害化: 許可したタグ・属性だけを組み立て直す(それ以外は文字として表示)
-  var VOID = { br: 1, hr: 1 };
-  var ALLOWED = { b: 1, strong: 1, i: 1, em: 1, u: 1, br: 1, hr: 1, p: 1, div: 1, span: 1, small: 1, sub: 1, sup: 1, h2: 1, h3: 1, h4: 1, h5: 1, ul: 1, ol: 1, li: 1, table: 1, thead: 1, tbody: 1, tr: 1, th: 1, td: 1, a: 1 };
+  var VOID = { br: 1, hr: 1, img: 1 };
+  var ALLOWED = { b: 1, strong: 1, i: 1, em: 1, u: 1, br: 1, hr: 1, p: 1, div: 1, span: 1, small: 1, sub: 1, sup: 1, h2: 1, h3: 1, h4: 1, h5: 1, ul: 1, ol: 1, li: 1, table: 1, thead: 1, tbody: 1, tr: 1, th: 1, td: 1, a: 1, img: 1 };
   function attrVal(attrs, name) {
     var m = new RegExp('(?:^|[\\s"\'/])' + name + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|([^\\s"\'>]+))', 'i').exec(attrs);
     return m ? (m[1] != null ? m[1] : m[2] != null ? m[2] : m[3]) : null;
   }
+  // 画像: サイトの img フォルダの中のファイルだけ(外部サイトの画像は、閲覧者の情報が外部に送られるため使わせない)
+  GIS.safeImgPath = function (p) {
+    p = String(p == null ? '' : p).trim();
+    try { p = decodeURIComponent(p); } catch (e) { return ''; }
+    p = p.normalize('NFC').replace(/^\.?\/+/, '');
+    if (!/^img\//.test(p) || !GIS.safeRelPath(p) || !/\.(png|jpe?g|gif|webp)$/i.test(p)) return '';
+    return p;
+  };
   function textSafe(t) { return t.replace(/&(?!#?[a-zA-Z0-9]{1,10};)/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   GIS.sanitizeHtml = function (html) {
     var re = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:[^>"']|"[^"]*"|'[^']*')*)>|<!--[\s\S]*?-->|[^<]+|</g;
@@ -78,6 +86,13 @@
       var o = '<' + tag;
       var cls = attrVal(m[3], 'class');
       if (cls != null && /^[\w\- ]{1,60}$/.test(cls)) o += ' class="' + cls + '"';
+      if (tag === 'img') {
+        var src = GIS.safeImgPath(attrVal(m[3], 'src'));
+        if (!src) continue;                           // 使えない画像は出さない
+        var alt = attrVal(m[3], 'alt');
+        out += '<img src="' + esc(src.split('/').map(encodeURIComponent).join('/')) + '" alt="' + esc(alt == null ? '' : alt) + '" loading="lazy">';
+        continue;
+      }
       if (tag === 'a') {
         var href = attrVal(m[3], 'href');
         if (href != null && /^https?:\/\/[^\s"'<>`\\]+$/i.test(href)) o += ' href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"';
@@ -205,7 +220,7 @@
     return { 'サイト名': (conf && conf.title) || '公開型GIS', '運営者': t.org || '本サービスの運営者', '担当課': t.dept || '担当課', '連絡先': t.contact || '' };
   };
   // 本文(かんたんな書き方 または HTML)を、安全なHTMLにする
-  //   ## 見出し / ・項目 または - 項目(箇条書き)/ 1. 項目(番号付き)/ ! 文(囲み)/ 空行で段落を区切る
+  //   ## 見出し / ・項目 または - 項目(箇条書き)/ 1. 項目(番号付き)/ ! 文(囲み)/ ![説明](img/画像.png)(画像)/ 空行で段落を区切る
   GIS.renderDoc = function (text, vars) {
     text = String(text == null ? '' : text).replace(/\{(サイト名|運営者|担当課|連絡先)\}/g, function (m, k) {
       return esc(vars && vars[k] != null ? vars[k] : '');
@@ -225,6 +240,11 @@
     text.split(/\r?\n/).forEach(function (line) {
       var s = line.trim();
       if (!s) { flushAll(); return; }
+      if ((m = s.match(/^[!！]\[([^\]]*)\]\(([^)\s]+)\)$/))) {   // 画像(1行に1つ)
+        flushAll();
+        out.push('<div class="doc-img"><img src="' + esc(m[2]) + '" alt="' + esc(m[1]) + '">' + (m[1] ? '<div class="cap">' + esc(m[1]) + '</div>' : '') + '</div>');
+        return;
+      }
       if ((m = s.match(/^(#{2,3})\s*(.+)$/))) { flushAll(); var hn = m[1].length === 2 ? 'h2' : 'h3'; out.push('<' + hn + '>' + inline(m[2]) + '</' + hn + '>'); return; }
       if ((m = s.match(/^(?:[-*]\s+|[・●■]\s*)(.+)$/))) { flushP(); flushB(); if (!list || list.t !== 'ul') { flushL(); list = { t: 'ul', items: [] }; } list.items.push(inline(m[1])); return; }
       if ((m = s.match(/^(?:\d+[.．]|[（(]\d+[)）])\s*(.+)$/))) { flushP(); flushB(); if (!list || list.t !== 'ol') { flushL(); list = { t: 'ol', items: [] }; } list.items.push(inline(m[1])); return; }

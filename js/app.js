@@ -345,11 +345,7 @@
   function valueMap(m) { return typeof m === 'string' ? (conf.valueMaps || {})[m] : m; }
   var pdfFiles = null;   // 公開サイトにあるPDFの一覧(manifest.json の pdfFiles)
   function popupSection(st, f) {
-    var notes = notesOf([st]);
-    var extra = notes.length ? '<div class="pu-note">' + notes.map(function (t) {
-      return '<a href="terms.html#' + esc(t.id) + '" target="_blank" rel="noopener" data-note="' + esc(t.id) + '">⚠ ' + esc(t.title) + '</a>';
-    }).join('') + '</div>' : '';
-    return GIS.popupSectionHtml(st.cfg, f.properties || {}, conf.valueMaps, { files: pdfFiles, extraHtml: extra });
+    return GIS.popupSectionHtml(st.cfg, f.properties || {}, conf.valueMaps, { files: pdfFiles });
   }
 
   var highlight = L.geoJSON(null, {
@@ -467,7 +463,7 @@
       if (!noSync) sync(s);
     });
   }
-  function afterVisibilityChange() { refreshGroups(); updateNotes(); }
+  function afterVisibilityChange() { refreshGroups(); }
 
   function legendItemsOf(cfg) {
     var items = cfg.legend;
@@ -508,15 +504,6 @@
     els.forEach(function (e) { row.appendChild(e); });
     item.appendChild(row);
   }
-  // 注意事項のボタン(パネル内)
-  function noteButtons(list) {
-    return notesOf(list).map(function (t) {
-      var b = document.createElement('button'); b.type = 'button'; b.className = 'note-btn';
-      b.textContent = '⚠ ' + t.title; b.title = t.summary || '注意事項を表示します';
-      b.addEventListener('click', function () { openNotes(t.id, notesOf(list)); });
-      return b;
-    });
-  }
 
   function makeLayerItem(st) {
     var cfg = st.cfg;
@@ -535,10 +522,9 @@
     var rg = item.querySelector('input[type=range]');
     st.hint = item.querySelector('.hint');
     st.checkbox = cb;
-    cb.addEventListener('change', function () { setVisible(st, cb.checked); afterVisibilityChange(); });
+    cb.addEventListener('change', function () { setVisible(st, cb.checked); afterVisibilityChange(); if (cb.checked) notesOnSelect([st]); });
     rg.addEventListener('input', function () { setOpacity(st, parseFloat(rg.value)); });
     appendRow(item, 'dl-row', dlButtons(st));
-    appendRow(item, 'note-row', noteButtons([st]));
     return item;
   }
 
@@ -585,8 +571,7 @@
     var dls = [];
     members.forEach(function (s) { dls = dls.concat(dlButtons(s, members.length > 1 ? s.cfg.name : '')); });
     appendRow(item, 'dl-row', dls);
-    appendRow(item, 'note-row', noteButtons(members));
-    cb.addEventListener('change', function () { setVisible(members[0], cb.checked); afterVisibilityChange(); });
+    cb.addEventListener('change', function () { setVisible(members[0], cb.checked); afterVisibilityChange(); if (cb.checked) notesOnSelect(members); });
     groupBoxes.push({ cb: cb, node: n });
     return item;
   }
@@ -610,8 +595,10 @@
       arrow.addEventListener('click', function () { setOpen(body.hidden); });
       title.addEventListener('click', function () { setOpen(body.hidden); });
       cb.addEventListener('change', function () {
-        descendants(n).forEach(function (s) { setVisible(s, cb.checked); });
+        var ds = descendants(n);
+        ds.forEach(function (s) { setVisible(s, cb.checked); });
         afterVisibilityChange();
+        if (cb.checked) notesOnSelect(ds);
       });
       groupBoxes.push({ cb: cb, node: n });
       wrap.appendChild(head); wrap.appendChild(body);
@@ -639,23 +626,21 @@
   // ================= 注意事項(利用規約ページのタブと連動) =================
   var noteTabs = [];        // 公開中のタブ(利用規約・注意事項)
   var docVars = {};
-  var shownNotes = {};      // 自動で表示した注意事項(sessionStorage が使えないときの記録)
+  var skipNotes = {};       // 「このタブを閉じるまで表示しない」にした注意事項(sessionStorage が使えないときの記録)
   function notesOf(list) {
     var ids = list.filter(Boolean).map(function (s) { return s.cfg.id; });
     return GIS.notesForLayers(noteTabs, ids);
   }
   function activeNotes() { return notesOf(states.filter(function (s) { return s.visible; })); }
-  function wasAutoShown(id) { try { return sessionStorage.getItem('gis_note_' + id) === '1'; } catch (e) { return !!shownNotes['auto_' + id]; } }
-  function markAutoShown(id) { shownNotes['auto_' + id] = true; try { sessionStorage.setItem('gis_note_' + id, '1'); } catch (e) {} }
+  function isSkipped(id) { if (skipNotes[id]) return true; try { return sessionStorage.getItem('gis_note_skip_' + id) === '1'; } catch (e) { return false; } }
+  function setSkipped(id) { skipNotes[id] = true; try { sessionStorage.setItem('gis_note_skip_' + id, '1'); } catch (e) {} }
 
-  // 表示中のレイヤーが変わったとき: 「自動で表示する」注意事項を開く
-  function updateNotes() {
-    var list = activeNotes();
-    // 「初めて表示したときに自動で表示」の注意事項(このタブを閉じるまで1回だけ)
-    if (!printOn && $('note-modal').hidden) {
-      var auto = list.filter(function (t) { return t.autoOpen && !wasAutoShown(t.id); });
-      if (auto.length) { auto.forEach(function (t) { markAutoShown(t.id); }); openNotes(auto[0].id, list); }
-    }
+  // 利用者がレイヤーを選んで表示したときだけ、そのレイヤーの注意事項を画面中央に表示する
+  // (最初から表示されているレイヤーや、検索で自動的に表示されたレイヤーでは表示しない)
+  function notesOnSelect(list) {
+    if (printOn) return;
+    var ns = notesOf(list).filter(function (t) { return !isSkipped(t.id); });
+    if (ns.length) openNotes(ns[0].id, ns);
   }
 
   // 注意事項のウィンドウ(地図の上に表示。関係する注意事項が複数あるときはタブで切り替え)
@@ -669,7 +654,7 @@
       var names = t.layers.map(function (lid) { return stById[lid] ? stById[lid].cfg.name : null; }).filter(Boolean);
       $('nm-layers').textContent = names.length ? '対象: ' + names.join('、') : '';
       $('nm-layers').hidden = !names.length;
-      $('nm-body').innerHTML = (t.summary ? '<div class="box">' + esc(t.summary) + '</div>' : '') + GIS.renderDoc(t.body, docVars);
+      $('nm-body').innerHTML = GIS.renderDoc(t.body, docVars);
       $('nm-body').scrollTop = 0;
       $('nm-open').href = 'terms.html#' + encodeURIComponent(t.id);
       Array.prototype.forEach.call(tabsBox.children, function (b) { b.setAttribute('aria-selected', b.getAttribute('data-id') === t.id ? 'true' : 'false'); });
@@ -686,11 +671,15 @@
     var cur = list.filter(function (t) { return t.id === id; })[0] || list[0];
     if (!cur) return;
     lastFocus = document.activeElement;
+    shownList = list;
+    $('nm-skip').checked = false;
     $('note-modal').hidden = false;
     show(cur);
     $('nm-ok').focus();
   }
+  var shownList = [];
   function closeNotes() {
+    if ($('nm-skip').checked) shownList.forEach(function (t) { setSkipped(t.id); });
     $('note-modal').hidden = true;
     if (lastFocus && lastFocus.focus) try { lastFocus.focus(); } catch (e) {}
   }
@@ -698,13 +687,6 @@
   $('nm-ok').addEventListener('click', closeNotes);
   $('note-modal').addEventListener('click', function (e) { if (e.target === $('note-modal')) closeNotes(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('note-modal').hidden) closeNotes(); });
-  // ポップアップ内の「⚠ 注意事項」リンク
-  document.addEventListener('click', function (e) {
-    var a = e.target && e.target.closest ? e.target.closest('a[data-note]') : null;
-    if (!a) return;
-    e.preventDefault();
-    openNotes(a.getAttribute('data-note'), activeNotes());
-  });
 
   $('btn-layers').addEventListener('click', function () { $('panel').hidden = !$('panel').hidden; });
   $('panel-close').addEventListener('click', function () { $('panel').hidden = true; });
@@ -930,6 +912,7 @@
   function syncSearchBox() {
     var box = $('search-box');
     if (!box) return;
+    if (box.hidden) { document.documentElement.style.setProperty('--search-h', '4px'); return; }   // 検索を使わないときは、拡大縮小ボタンを上に詰める
     var bottom = $('search-form').getBoundingClientRect().bottom;
     var hint = $('search-hint');
     if (hint && !hint.hidden) bottom = Math.max(bottom, hint.getBoundingClientRect().bottom);
@@ -1029,7 +1012,7 @@
     function add(text) { if (!text) return; var p = document.createElement('p'); p.textContent = text; notes.appendChild(p); }
     add(($('notice-text') && $('notice-text').textContent) || '');
     activeNotes().forEach(function (t) {   // 表示中のレイヤーの注意事項
-      add('【' + t.title + '】' + (t.summary || '利用規約・注意事項のページの「' + t.title + '」をご確認ください。'));
+      add('【' + t.title + '】利用規約・注意事項のページの「' + t.title + '」をご確認ください。');
     });
     var base = bases.filter(function (b) { return map.hasLayer(b.layer); })[0];
     add('背景: ' + (base ? base.name : '') + '(出典: 国土地理院)');
@@ -1165,9 +1148,12 @@
         stById[cfg.id] = st;
       });
       buildPanel();
-      updateNotes();
       showStatus(map.getCenter());
-      setupSearchHint();
+      // 検索機能: 管理画面でオフにしたとき、または検索できるレイヤーが無いとき(地番データが無い場合など)は、検索欄を出さない
+      var searchOn = c.searchEnabled !== false && states.some(function (s) { return s.cfg.search && (s.cfg.search.index || (s.cfg.search.fields && s.cfg.search.fields.length)); });
+      $('search-box').hidden = !searchOn;
+      syncSearchBox();
+      if (searchOn) setupSearchHint();
       syncAll();
     })
     .catch(function (e) {
