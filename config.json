@@ -2,10 +2,10 @@
   "title": "公開型GIS",
   "map": {
     "center": [
-      36.720531,
-      139.716911
+      36.720259,
+      139.700238
     ],
-    "zoom": 14,
+    "zoom": 15,
     "minZoom": 8,
     "maxZoom": 20
   },
@@ -170,7 +170,7 @@
   "categories": {
     "都市計画": {
       "order": 20,
-      "open": true
+      "open": false
     },
     "地番データ": {
       "mode": "group"
@@ -361,7 +361,13 @@
           "BCR",
           "Cityname"
         ]
-      }
+      },
+      "pdf": [
+        {
+          "href": "pdf/用途地域/{YoutoName}.pdf",
+          "text": "詳細資料"
+        }
+      ]
     },
     "地番データ/地番図": {
       "build": {
@@ -434,8 +440,8 @@
       },
       {
         "id": "notemvdutp1h",
-        "title": "test",
-        "body": "## test\n注意事項１\n注意事項２",
+        "title": "用途地域",
+        "body": "## 用途地域\n注意事項１\n注意事項２",
         "layers": [
           "都市計画/用途地域"
         ],
