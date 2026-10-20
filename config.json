@@ -2,10 +2,10 @@
   "title": "公開型GIS",
   "map": {
     "center": [
-      36.724408,
-      139.697599
+      36.720531,
+      139.716911
     ],
-    "zoom": 15,
+    "zoom": 14,
     "minZoom": 8,
     "maxZoom": 20
   },
@@ -442,5 +442,6 @@
         "autoOpen": true
       }
     ]
-  }
+  },
+  "searchExample": "今市本町　1-1"
 }
