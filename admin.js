@@ -406,7 +406,6 @@
         var o = { id: t.id, title: t.title };
         if (t.builtin) o.builtin = true;
         if (t.body) o.body = t.body;
-        if (t.summary) o.summary = t.summary;
         if (t.layers.length) o.layers = t.layers;
         if (t.hidden) o.hidden = true;
         return o;
@@ -467,7 +466,7 @@
     var pv = h('div', { 'class': 'doc-preview doc' });
     function preview() {
       var body = t.builtin && !t.body ? (stdTermsCache || '(標準の利用規約文を読み込み中…)') : (t.body || '');
-      pv.innerHTML = (t.summary && !t.builtin ? '<div class="box">' + GIS.esc(t.summary) + '</div>' : '') + GIS.renderDoc(body, GIS.docVars(config));
+      pv.innerHTML = GIS.renderDoc(body, GIS.docVars(config));
     }
     ta.addEventListener('input', function () { setT('body', ta.value.replace(/\s+$/, '') ? ta.value : undefined); preview(); });
     var chips = h('div', { 'class': 'chips' }, ['{運営者}', '{担当課}', '{サイト名}', '{連絡先}'].map(function (k) {
@@ -477,12 +476,29 @@
         ta.dispatchEvent(new Event('input')); ta.focus();
       } });
     }));
+    // 画像の挿入: 公開サイトの img フォルダにある画像を選んで、本文のカーソル位置に入れる
+    function imgPicker() {
+      var list = Array.isArray(manifest.imgFiles) ? manifest.imgFiles : [];
+      var pick = sel_('', [{ v: '', t: list.length ? '(画像を選ぶ: ' + list.length + '件)' : '(img フォルダに画像がありません)' }].concat(list.map(function (p) { return { v: p, t: p.replace(/^img\//, '') }; })), function () {});
+      var cap = h('input', { type: 'text', placeholder: '画像の説明(任意。例: 地番図の見方)' });
+      var btn = h('button', { type: 'button', text: '＋ 本文に挿入', onclick: function () {
+        if (!pick.value) { alert('挿入する画像を選んでください'); return; }
+        var tx = '\n![' + cap.value.replace(/[\[\]]/g, '') + '](' + pick.value + ')\n';
+        var p = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
+        ta.value = ta.value.slice(0, p) + tx + ta.value.slice(ta.selectionEnd == null ? p : ta.selectionEnd);
+        ta.dispatchEvent(new Event('input')); ta.focus();
+        pick.value = ''; cap.value = '';
+      } });
+      return h('div', { 'class': 'img-pick' }, [h('span', { 'class': 'inl' }, [pick, cap, btn]),
+        h('small', { text: '画像は、リポジトリの img フォルダに置いて Commit すると、数分後にここで選べるようになります(png・jpg・gif・webp)。本文に ![説明](img/ファイル名.png) と直接書くこともできます' })]);
+    }
     var howto = h('details', { 'class': 'howto' }, [h('summary', { text: '本文の書き方' }), h('div', { html:
       '<table class="grid"><tr><th>書き方</th><th>表示</th></tr>' +
       '<tr><td><code>## 見出し</code></td><td>見出し(<code>###</code> で小見出し)</td></tr>' +
       '<tr><td><code>・項目</code> または <code>- 項目</code></td><td>箇条書き</td></tr>' +
       '<tr><td><code>1. 項目</code></td><td>番号付きの箇条書き</td></tr>' +
       '<tr><td><code>! 文章</code></td><td>黄色の囲み(特に注意してほしいこと)</td></tr>' +
+      '<tr><td><code>![説明](img/画像.png)</code></td><td>画像(1行に1つ。説明は画像の下に表示されます)。「画像を挿入」で入れられます</td></tr>' +
       '<tr><td>空行</td><td>段落の区切り(空行を入れずに改行すると、段落の中で改行)</td></tr>' +
       '<tr><td><code>https://…</code></td><td>自動でリンクになります</td></tr>' +
       '<tr><td><code>{担当課}</code> など</td><td>下の「利用規約ページに表示する情報」の値に置き換わります</td></tr></table>' +
@@ -500,19 +516,17 @@
             .catch(function () { alert('標準の利用規約文を読み込めませんでした。公開サイト(または _site)の admin.html から開いてください。'); renderEditor(); });
         } }), h('span', {}, [h('b', { text: '文章を自分で編集する' }), '(標準の文を読み込んで、書き換えられます)'])])
       ]));
-      if (custom) { card.appendChild(row('本文', ta)); card.appendChild(row('差し込み', chips)); card.appendChild(howto); }
+      if (custom) { card.appendChild(row('本文', ta)); card.appendChild(row('差し込み', chips)); card.appendChild(row('画像を挿入', imgPicker())); card.appendChild(howto); }
       var ex = h('textarea', { rows: 3, placeholder: '1行が1つの段落になります' });
       ex.value = (config.terms || {}).extra || '';
       ex.addEventListener('change', function () { setC(['terms', 'extra'], ex.value.trim()); });
       card.appendChild(row('追記事項', ex, '自治体・組織の定めなど、規約の最後に「追記事項」として付け足す文章(任意)'));
     } else {
+      if (t.summary) delete t.summary;   // 以前の版の「要点」は使わなくなったため消す
       card.appendChild(row('本文', ta));
       card.appendChild(row('差し込み', chips));
+      card.appendChild(row('画像を挿入', imgPicker()));
       card.appendChild(howto);
-      var sm = h('textarea', { rows: 2, placeholder: '例: 地番図は公図をもとにした参考図です。境界や面積の確認には使えません。' });
-      sm.value = t.summary || '';
-      sm.addEventListener('input', function () { setT('summary', sm.value.trim()); preview(); });
-      card.appendChild(row('要点(1〜2文)', sm, '注意事項の先頭に黄色の囲みで表示され、印刷した地図の注意書きにも入ります(任意)'));
 
       // 対象のレイヤー(カテゴリごと)
       var cfgs = allCfgs().filter(function (c) { return !c.hidden; });

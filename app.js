@@ -654,7 +654,7 @@
       var names = t.layers.map(function (lid) { return stById[lid] ? stById[lid].cfg.name : null; }).filter(Boolean);
       $('nm-layers').textContent = names.length ? '対象: ' + names.join('、') : '';
       $('nm-layers').hidden = !names.length;
-      $('nm-body').innerHTML = (t.summary ? '<div class="box">' + esc(t.summary) + '</div>' : '') + GIS.renderDoc(t.body, docVars);
+      $('nm-body').innerHTML = GIS.renderDoc(t.body, docVars);
       $('nm-body').scrollTop = 0;
       $('nm-open').href = 'terms.html#' + encodeURIComponent(t.id);
       Array.prototype.forEach.call(tabsBox.children, function (b) { b.setAttribute('aria-selected', b.getAttribute('data-id') === t.id ? 'true' : 'false'); });
@@ -1012,7 +1012,7 @@
     function add(text) { if (!text) return; var p = document.createElement('p'); p.textContent = text; notes.appendChild(p); }
     add(($('notice-text') && $('notice-text').textContent) || '');
     activeNotes().forEach(function (t) {   // 表示中のレイヤーの注意事項
-      add('【' + t.title + '】' + (t.summary || '利用規約・注意事項のページの「' + t.title + '」をご確認ください。'));
+      add('【' + t.title + '】利用規約・注意事項のページの「' + t.title + '」をご確認ください。');
     });
     var base = bases.filter(function (b) { return map.hasLayer(b.layer); })[0];
     add('背景: ' + (base ? base.name : '') + '(出典: 国土地理院)');
