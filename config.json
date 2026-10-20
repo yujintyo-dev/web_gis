@@ -175,6 +175,9 @@
     "地番データ": {
       "mode": "group",
       "open": false
+    },
+    "ハザードマップ": {
+      "open": false
     }
   },
   "layers": {
@@ -429,6 +432,63 @@
           "地番データ/地番図"
         ]
       }
+    },
+    "ハザードマップ/急傾斜地": {
+      "minZoom": 14,
+      "popup": {
+        "fields": [
+          {
+            "key": "ID"
+          },
+          {
+            "key": "GENSHO"
+          },
+          {
+            "key": "KUBUN"
+          },
+          {
+            "key": "JIMUSHO"
+          }
+        ]
+      }
+    },
+    "ハザードマップ/地すべり": {
+      "minZoom": 14,
+      "popup": {
+        "fields": [
+          {
+            "key": "ID"
+          },
+          {
+            "key": "GENSHO"
+          },
+          {
+            "key": "KUBUN"
+          },
+          {
+            "key": "JIMUSHO"
+          }
+        ]
+      }
+    },
+    "ハザードマップ/土石流": {
+      "minZoom": 14,
+      "popup": {
+        "fields": [
+          {
+            "key": "ID"
+          },
+          {
+            "key": "GENSHO"
+          },
+          {
+            "key": "KUBUN"
+          },
+          {
+            "key": "JIMUSHO"
+          }
+        ]
+      }
     }
   },
   "terms": {
@@ -448,6 +508,18 @@
           "都市計画/用途地域"
         ],
         "autoOpen": true
+      },
+      {
+        "id": "notemvgqgaqv",
+        "title": "ハザードマップ",
+        "body": "## ハザードマップ\n・ここに注意事項を書きます\n・1行が1項目になります",
+        "layers": [
+          "ハザードマップ/土石流",
+          "ハザードマップ/地すべり",
+          "ハザードマップ/急傾斜地"
+        ],
+        "dept": "テスト管理課",
+        "contact": "0123-456-789"
       }
     ]
   },
