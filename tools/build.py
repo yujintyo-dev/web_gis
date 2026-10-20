@@ -444,8 +444,11 @@ PDF_WARN_MB = 300
 PDF_EXT = (".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".csv", ".txt", ".zip")
 
 
-def copy_pdf(src_dir, out):
-    """pdf/ フォルダの中身を公開サイトにコピーし、ファイルの一覧(pdf/… の形)を返す。
+IMG_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp")   # 注意事項に入れる画像(SVGはスクリプトを含められるため除外)
+
+
+def copy_pdf(src_dir, out, prefix="pdf", exts=PDF_EXT, label="PDF・資料"):
+    """pdf/(または img/)フォルダの中身を公開サイトにコピーし、ファイルの一覧(pdf/… の形)を返す。
     Macで作ったファイル名(濁点が分かれた形)でもリンクできるよう、ファイル名をNFCにそろえる。"""
     files = []
     if not os.path.isdir(src_dir):
@@ -460,18 +463,18 @@ def copy_pdf(src_dir, out):
             if os.path.islink(p):
                 log("  ! リンクのファイルは公開しません:", fn)
                 continue
-            if not fn.lower().endswith(PDF_EXT):
-                log("  ! この形式のファイルは公開しません(使える形式: %s):" % " ".join(PDF_EXT), fn)
+            if not fn.lower().endswith(exts):
+                log("  ! この形式のファイルは公開しません(使える形式: %s):" % " ".join(exts), fn)
                 continue
             rel = unicodedata.normalize("NFC", os.path.relpath(p, src_dir).replace(os.sep, "/"))
-            dst = os.path.join(out, "pdf", *rel.split("/"))
+            dst = os.path.join(out, prefix, *rel.split("/"))
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copyfile(p, dst)
             total += os.path.getsize(p)
-            files.append("pdf/" + rel)
-    log("PDF・資料: %d 件 (%.1f MB)" % (len(files), total / 1048576))
+            files.append(prefix + "/" + rel)
+    log("%s: %d 件 (%.1f MB)" % (label, len(files), total / 1048576))
     if total > PDF_WARN_MB * 1048576:
-        log("  ※ pdf フォルダが %d MB を超えています。GitHub Pages は公開サイト全体で 1GB までです" % PDF_WARN_MB)
+        log("  ※ %s フォルダが %d MB を超えています。GitHub Pages は公開サイト全体で 1GB までです" % (prefix, PDF_WARN_MB))
     return files
 
 
@@ -483,6 +486,7 @@ def main():
     ap.add_argument("--out", default="_site")
     ap.add_argument("--cache", default=".cache")
     ap.add_argument("--root", default=".")
+    ap.add_argument("--img", default="img", help="注意事項などに入れる画像を置くフォルダ")
     ap.add_argument("--pdf", default="pdf", help="ポップアップからダウンロードさせるPDFなどを置くフォルダ")
     ap.add_argument("--skip-vendor", action="store_true", help="Leafletの同梱を省略(通信できない環境でのテスト用)")
     a = ap.parse_args()
@@ -593,9 +597,10 @@ def main():
         if fn != "dl" and fn not in used and os.path.isdir(p):
             shutil.rmtree(p)
     pdf_files = copy_pdf(a.pdf, a.out)
+    img_files = copy_pdf(a.img, a.out, "img", IMG_EXT, "画像")
     with open(os.path.join(a.out, "manifest.json"), "w", encoding="utf-8") as fp:
         json.dump({"version": 1, "generated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                   "layers": entries, "pdfFiles": pdf_files}, fp, ensure_ascii=False)
+                   "layers": entries, "pdfFiles": pdf_files, "imgFiles": img_files}, fp, ensure_ascii=False)
     for fn in ("index.html", "admin.html", "terms.html"):
         p = os.path.join(a.root, fn)
         if os.path.exists(p):
