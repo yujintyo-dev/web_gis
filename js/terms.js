@@ -28,7 +28,7 @@
     }
     var ls = t.layers.map(function (id) { return names[id] || id.split('/').pop(); });
     if (ls.length) html += '<p class="target">対象のレイヤー: ' + ls.map(GIS.esc).join('、') + '</p>';
-    return html + GIS.renderDoc(t.body, vars);
+    return html + GIS.renderDoc(t.body, GIS.docVars(conf, t)) + GIS.noteContactHtml(t);
   }
 
   function show(id, focus) {
@@ -42,6 +42,11 @@
       if (on && b.scrollIntoView) try { b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
     });
     $('doc').innerHTML = (t.builtin ? '' : '<h2 class="doc-title">' + GIS.esc(t.title) + '</h2>') + bodyHtml(t);
+    // ページ下の「お問い合わせ先」: 注意事項のタブに担当課・連絡先があれば、それを表示
+    var tv = GIS.docVars(conf, t);
+    setAll('t-dept', tv['担当課']);
+    $('t-contact').textContent = tv['連絡先'];
+    $('t-contact-row').hidden = !tv['連絡先'];
     document.title = t.title + ' - ' + (conf.title || '公開型GIS');
   }
 
@@ -85,7 +90,6 @@
     if (c.title) setAll('t-site', c.title);
     setAll('t-org', vars['運営者']);
     setAll('t-dept', vars['担当課']);
-    if (t.contact) { $('t-contact').textContent = String(t.contact); $('t-contact-row').hidden = false; }
     if (t.date) { $('t-date').textContent = String(t.date); $('t-date-row').hidden = false; }
     tabs = GIS.termsTabs(c).filter(function (x) { return !x.hidden; });
     build();

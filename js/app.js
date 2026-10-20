@@ -654,7 +654,7 @@
       var names = t.layers.map(function (lid) { return stById[lid] ? stById[lid].cfg.name : null; }).filter(Boolean);
       $('nm-layers').textContent = names.length ? '対象: ' + names.join('、') : '';
       $('nm-layers').hidden = !names.length;
-      $('nm-body').innerHTML = GIS.renderDoc(t.body, docVars);
+      $('nm-body').innerHTML = GIS.renderDoc(t.body, GIS.docVars(conf, t)) + GIS.noteContactHtml(t);
       $('nm-body').scrollTop = 0;
       $('nm-open').href = 'terms.html#' + encodeURIComponent(t.id);
       Array.prototype.forEach.call(tabsBox.children, function (b) { b.setAttribute('aria-selected', b.getAttribute('data-id') === t.id ? 'true' : 'false'); });

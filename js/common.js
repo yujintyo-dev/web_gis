@@ -197,7 +197,8 @@
   };
 
   // ---------- 利用規約・注意事項のタブ ----------
-  // config.terms.tabs = [{ id, title, builtin, body, summary, layers: [レイヤーID], autoOpen, hidden }]
+  // config.terms.tabs = [{ id, title, builtin, body, layers: [レイヤーID], hidden, dept, contact }]
+  //   dept・contact: その注意事項の担当課・連絡先(空欄なら全体の設定)
   GIS.termsTabs = function (conf) {
     var t = (conf && conf.terms) || {};
     var src = Array.isArray(t.tabs) ? t.tabs.filter(function (x) { return x && typeof x === 'object' && x.id; }) : [];
@@ -210,14 +211,27 @@
       return {
         id: id, title: String(x.title || (x.builtin ? '利用規約' : '注意事項')), builtin: !!x.builtin,
         body: x.body == null ? '' : String(x.body), summary: x.summary == null ? '' : String(x.summary),
-        layers: Array.isArray(x.layers) ? x.layers.map(String) : [], autoOpen: x.autoOpen === true, hidden: x.hidden === true
+        layers: Array.isArray(x.layers) ? x.layers.map(String) : [], autoOpen: x.autoOpen === true, hidden: x.hidden === true,
+        dept: x.dept == null ? '' : String(x.dept).trim(), contact: x.contact == null ? '' : String(x.contact).trim()
       };
     }).filter(Boolean);
   };
   // 本文に使える差し込み文字
-  GIS.docVars = function (conf) {
+  // tab を渡すと、そのタブの担当課・連絡先を優先する(注意事項ごとに担当課が違う場合)
+  GIS.docVars = function (conf, tab) {
     var t = (conf && conf.terms) || {};
-    return { 'サイト名': (conf && conf.title) || '公開型GIS', '運営者': t.org || '本サービスの運営者', '担当課': t.dept || '担当課', '連絡先': t.contact || '' };
+    var v = { 'サイト名': (conf && conf.title) || '公開型GIS', '運営者': t.org || '本サービスの運営者', '担当課': t.dept || '担当課', '連絡先': t.contact || '' };
+    if (tab && !tab.builtin) {
+      if (tab.dept) v['担当課'] = String(tab.dept);
+      if (tab.contact) v['連絡先'] = String(tab.contact);
+    }
+    return v;
+  };
+  // 注意事項の最後に出す「お問い合わせ先」(そのタブに担当課・連絡先を設定したときだけ)
+  GIS.noteContactHtml = function (tab) {
+    if (!tab || tab.builtin || (!tab.dept && !tab.contact)) return '';
+    return '<div class="note-contact"><div class="nc-h">この情報についてのお問い合わせ先</div>' +
+      (tab.dept ? '<div>担当課: ' + esc(tab.dept) + '</div>' : '') + (tab.contact ? '<div>連絡先: ' + esc(tab.contact) + '</div>' : '') + '</div>';
   };
   // 本文(かんたんな書き方 または HTML)を、安全なHTMLにする
   //   ## 見出し / ・項目 または - 項目(箇条書き)/ 1. 項目(番号付き)/ ! 文(囲み)/ ![説明](img/画像.png)(画像)/ 空行で段落を区切る

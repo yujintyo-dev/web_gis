@@ -408,6 +408,8 @@
         if (t.body) o.body = t.body;
         if (t.layers.length) o.layers = t.layers;
         if (t.hidden) o.hidden = true;
+        if (t.dept) o.dept = t.dept;
+        if (t.contact) o.contact = t.contact;
         return o;
       });
     }
@@ -466,7 +468,7 @@
     var pv = h('div', { 'class': 'doc-preview doc' });
     function preview() {
       var body = t.builtin && !t.body ? (stdTermsCache || '(標準の利用規約文を読み込み中…)') : (t.body || '');
-      pv.innerHTML = GIS.renderDoc(body, GIS.docVars(config));
+      pv.innerHTML = GIS.renderDoc(body, GIS.docVars(config, t)) + GIS.noteContactHtml(t);
     }
     ta.addEventListener('input', function () { setT('body', ta.value.replace(/\s+$/, '') ? ta.value : undefined); preview(); });
     var chips = h('div', { 'class': 'chips' }, ['{運営者}', '{担当課}', '{サイト名}', '{連絡先}'].map(function (k) {
@@ -552,6 +554,13 @@
         ]));
       });
       card.appendChild(row('対象のレイヤー', lw, 'チェックしたレイヤーを利用者が選んで表示したとき、この注意事項が画面中央に表示されます'));
+
+      // この注意事項の担当課・連絡先(レイヤーごとに担当が違う場合)
+      var gt = config.terms || {};
+      card.appendChild(row('担当課(この注意事項)', tIn(t.dept || '', function (v) { setT('dept', v.trim()); preview(); }, { ph: gt.dept ? '空欄なら「' + gt.dept + '」' : '例: 税務課' }),
+        '本文の {担当課} と、注意事項の最後の「お問い合わせ先」に使われます。空欄なら、下の「利用規約ページに表示する情報」の担当課になります'));
+      card.appendChild(row('連絡先(この注意事項)', tIn(t.contact || '', function (v) { setT('contact', v.trim()); preview(); }, { ph: gt.contact ? '空欄なら「' + gt.contact + '」' : '例: 電話 000-000-0000(内線 123)' }),
+        '本文の {連絡先} と、「お問い合わせ先」に使われます。担当課・連絡先のどちらかを入れると、注意事項の最後に「この情報についてのお問い合わせ先」が表示されます'));
     }
     card.appendChild(row('下書き(公開しない)', chk(t.hidden === true, function (v) { setT('hidden', v ? true : undefined); renderTree(); renderEditor(); }), 'チェックすると、公開サイトには表示されません'));
     card.appendChild(h('h3', { text: 'プレビュー' }));
