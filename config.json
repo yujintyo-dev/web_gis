@@ -173,7 +173,8 @@
       "open": false
     },
     "地番データ": {
-      "mode": "group"
+      "mode": "group",
+      "open": false
     }
   },
   "layers": {
@@ -365,7 +366,8 @@
       "pdf": [
         {
           "href": "pdf/用途地域/{YoutoName}.pdf",
-          "text": "詳細資料"
+          "text": "詳細資料",
+          "open": "tab"
         }
       ]
     },
