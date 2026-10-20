@@ -42,3 +42,6 @@ a { color: #1864ab; }
   h1 { font-size: 22px; }
 }
 @media print { body { background: #fff; } main { max-width: none; padding: 0; } .back { display: none; } #tabs { position: static; } }
+.doc-img { margin: 14px 0; text-align: center; }
+#doc img { max-width: 100%; height: auto; border: 1px solid #dee2e6; border-radius: 6px; }
+.doc-img .cap { font-size: 13px; color: #868e96; margin-top: 2px; }

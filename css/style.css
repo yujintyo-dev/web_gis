@@ -10,6 +10,7 @@ html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Hi
   top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px;
   width: min(360px, calc(100% - 80px));
 }
+#search-box[hidden] { display: none; }
 #search-form { display: flex; background: #fff; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,.35); overflow: hidden; }
 #search-input { flex: 1; min-width: 0; border: 0; padding: 11px 12px; font-size: 16px; outline: none; }
 #search-form button { border: 0; background: #1c7ed6; color: #fff; padding: 0 14px; font-size: 15px; cursor: pointer; }
@@ -130,9 +131,6 @@ html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Hi
 .panel-foot { margin: 14px 0 0; font-size: 13px; }
 
 /* パネル内: 注意事項ボタン・まとめて表示 */
-.note-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px 24px; }
-.note-btn { border: 1px solid #ffa94d; background: #fff4e6; color: #c2410c; border-radius: 6px; padding: 4px 9px; font-size: 12px; cursor: pointer; }
-.note-btn:hover { background: #ffe8cc; }
 .group-ico { width: 14px; text-align: center; color: #495057; flex: none; font-size: 14px; }
 .group-item > label span:last-child { font-weight: 700; }
 .group-desc { color: #495057; }
@@ -145,8 +143,6 @@ html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Hi
 }
 .pu-pdf::before { content: "PDF"; font-size: 9.5px; font-weight: 800; color: #fff; background: #e03131; border-radius: 3px; padding: 1px 4px; }
 .pu-pdf:hover { background: #d0ebff; }
-.pu-note { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
-.pu-note a { font-size: 12px; color: #c2410c; font-weight: 600; }
 
 /* 注意事項のウィンドウ */
 #note-modal { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 12px; }
@@ -165,6 +161,7 @@ html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Hi
 #nm-body { padding: 8px 16px 12px; overflow-y: auto; flex: 1 1 auto; font-size: 14px; line-height: 1.75; }
 .nm-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-top: 1px solid #dee2e6; background: #f8f9fa; }
 .nm-foot a { font-size: 13px; color: #1864ab; }
+.nm-skip { flex-basis: 100%; display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #495057; cursor: pointer; }
 #nm-ok { font: inherit; padding: 7px 18px; border: 0; border-radius: 6px; background: #1c7ed6; color: #fff; font-weight: 700; cursor: pointer; }
 
 /* 注意事項の本文(利用規約ページと同じ書き方) */
@@ -222,3 +219,6 @@ body.print-mode #print-foot { display: block; flex: none; padding-top: 4px; font
   body.print-mode #sheet { position: relative; left: 0; margin: 0; transform: none; box-shadow: none; page-break-inside: avoid; break-inside: avoid; }
   .leaflet-control-attribution { font-size: 8px !important; }
 }
+.doc .doc-img { margin: 10px 0; text-align: center; }
+.doc img { max-width: 100%; height: auto; border: 1px solid #dee2e6; border-radius: 6px; }
+.doc .doc-img .cap { font-size: 12px; color: #868e96; margin-top: 2px; }
