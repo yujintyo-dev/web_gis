@@ -139,7 +139,8 @@
   }
   function cleanConfig() {
     var c = JSON.parse(JSON.stringify(config));
-    ['map', 'categories', 'layers', 'notice', 'terms'].forEach(function (k) { if (c[k]) prune(c[k]); });
+    ['map', 'categories', 'layers', 'notice', 'notice2', 'terms'].forEach(function (k) { if (c[k]) prune(c[k]); });
+    if (c.notice2 && !Object.keys(c.notice2).length) delete c.notice2;
     if (c.layers) Object.keys(c.layers).forEach(function (id) { if (!Object.keys(c.layers[id]).length) delete c.layers[id]; });
     if (c.categories) Object.keys(c.categories).forEach(function (p) { if (!Object.keys(c.categories[p]).length) delete c.categories[p]; });
     ['categories', 'layers', 'notice', 'terms'].forEach(function (k) { if (c[k] && !Object.keys(c[k]).length) delete c[k]; });
@@ -582,6 +583,43 @@
     nta.value = nc.text || '';
     nta.addEventListener('change', function () { setC(['notice', 'text'], nta.value.trim()); });
     ed.appendChild(row('案内文', nta, '空欄なら、標準の文言(参考図であること・担当課での確認のお願い)になります'));
+
+    // --- 2つ目の案内(案内帯の上段) ---
+    ed.appendChild(h('h3', { text: '画面下の2つ目の案内(案内帯の上の段)' }));
+    ed.appendChild(h('p', { 'class': 'help', text: 'お知らせなどを、利用規約の案内帯の上に1行で表示します。文章の後ろに、リンク(別のページを開く/文章をポップアップで出す)を付けられます。' }));
+    var n2 = config.notice2 || {}, lk2 = n2.link || {};
+    function set2(keys, v) { setC(['notice2'].concat(keys), v); }
+    ed.appendChild(row('表示する', chk(n2.enabled === true, function (v) { set2(['enabled'], v ? true : undefined); renderEditor(); }), 'チェックを外すと表示しません(文章は残ります)'));
+    var t2 = h('textarea', { rows: 2, placeholder: '例: 令和9年1月1日時点の地番図に更新しました。' });
+    t2.value = n2.text || '';
+    t2.addEventListener('change', function () { set2(['text'], t2.value.replace(/\s*\n\s*/g, ' ').trim()); });
+    ed.appendChild(row('文章', t2, '1行で表示されます(改行はスペースになります)'));
+    ed.appendChild(row('リンク', sel_(lk2.type || 'none', [{ v: 'none', t: 'リンクなし' }, { v: 'url', t: '指定したURLを開く' }, { v: 'popup', t: 'ポップアップで文章を表示する' }], function (v) {
+      set2(['link', 'type'], v === 'none' ? undefined : v); renderEditor();
+    })));
+    if (lk2.type === 'url' || lk2.type === 'popup') {
+      ed.appendChild(row('リンクの文字', tIn(lk2.text || '', function (v) { set2(['link', 'text'], v.trim()); }, { ph: lk2.type === 'url' ? '▶ 詳しくはこちら' : '▶ 詳しく見る' }), '空欄なら「' + (lk2.type === 'url' ? '▶ 詳しくはこちら' : '▶ 詳しく見る') + '」'));
+    }
+    if (lk2.type === 'url') {
+      var uIn = tIn(lk2.url || '', function (v) {
+        v = v.trim();
+        if (v && !GIS.safeUrl(v)) { alert('URLは https:// で始まる形で入力してください(サイト内のファイルなら pdf/お知らせ.pdf のような形も使えます)'); return; }
+        set2(['link', 'url'], v);
+      }, { ph: 'https://www.city.example.jp/…' });
+      uIn.classList.add('wide');
+      ed.appendChild(row('リンク先のURL', uIn, '新しいタブで開きます。https:// で始まるURL、またはサイト内のファイル(例: pdf/お知らせ.pdf)'));
+    }
+    if (lk2.type === 'popup') {
+      ed.appendChild(row('ポップアップの見出し', tIn(lk2.title || '', function (v) { set2(['link', 'title'], v.trim()); pv2(); }, { ph: '例: 地番図の更新について' })));
+      var b2 = h('textarea', { rows: 8, 'class': 'doc-src', placeholder: '## 見出し\n・箇条書き\n! 黄色の囲み' });
+      b2.value = lk2.body || '';
+      b2.addEventListener('input', function () { set2(['link', 'body'], b2.value.replace(/\s+$/, '') ? b2.value : undefined); pv2(); });
+      ed.appendChild(row('ポップアップの本文', b2, '注意事項の本文と同じ書き方が使えます(## 見出し / ・箇条書き / ! 囲み / ![説明](img/画像.png) / {担当課} など)'));
+      var p2 = h('div', { 'class': 'doc-preview doc' });
+      var pv2 = function () { p2.innerHTML = '<h3>' + GIS.esc((config.notice2 && config.notice2.link && config.notice2.link.title) || '(見出し)') + '</h3>' + GIS.renderDoc(b2.value, GIS.docVars(config)); };
+      ed.appendChild(row('プレビュー', p2));
+      pv2();
+    }
 
     // --- 規約ページに出す情報 ---
     ed.appendChild(h('h3', { text: '利用規約ページに表示する情報(本文の {運営者} などにも使われます)' }));

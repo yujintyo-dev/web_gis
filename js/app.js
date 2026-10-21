@@ -645,8 +645,14 @@
 
   // 注意事項のウィンドウ(地図の上に表示。関係する注意事項が複数あるときはタブで切り替え)
   var lastFocus = null;
-  function openNotes(id, list) {
+  // opts.plain: 案内帯のポップアップなど、注意事項ではない文章を出すとき(「表示しない」・利用規約へのリンクを出さない)
+  function openNotes(id, list, opts) {
+    opts = opts || {};
     if (!list || !list.length) list = noteTabs.filter(function (t) { return t.id === id; });
+    $('nm-skip').parentNode.hidden = !!opts.plain;
+    $('nm-open').hidden = !!opts.plain;
+    document.querySelector('#note-modal .nm-icon').textContent = opts.plain ? 'ℹ' : '⚠';
+    $('nm-ok').textContent = opts.plain ? '閉じる' : '確認しました';
     var tabsBox = $('nm-tabs');
     tabsBox.innerHTML = '';
     function show(t) {
@@ -654,7 +660,7 @@
       var names = t.layers.map(function (lid) { return stById[lid] ? stById[lid].cfg.name : null; }).filter(Boolean);
       $('nm-layers').textContent = names.length ? '対象: ' + names.join('、') : '';
       $('nm-layers').hidden = !names.length;
-      $('nm-body').innerHTML = GIS.renderDoc(t.body, GIS.docVars(conf, t)) + GIS.noteContactHtml(t);
+      $('nm-body').innerHTML = GIS.renderDoc(t.body, GIS.docVars(conf, t)) + (opts.plain ? '' : GIS.noteContactHtml(t));
       $('nm-body').scrollTop = 0;
       $('nm-open').href = 'terms.html#' + encodeURIComponent(t.id);
       Array.prototype.forEach.call(tabsBox.children, function (b) { b.setAttribute('aria-selected', b.getAttribute('data-id') === t.id ? 'true' : 'false'); });
@@ -907,6 +913,28 @@
   }
   window.addEventListener('resize', syncNotice);
 
+  // ================= 2つ目の案内(画面下の帯の上段) =================
+  // config.notice2 = { enabled, text, link: { type: 'none'|'url'|'popup', text, url, title, body } }
+  function setupNotice2(n2) {
+    var box = $('notice2'), lk = n2.link || {}, a = $('notice2-link');
+    var text = String(n2.text || '').trim();
+    if (n2.enabled !== true || !text) { box.hidden = true; return; }
+    $('notice2-text').textContent = text;
+    var label = String(lk.text || '').trim() || (lk.type === 'url' ? '▶ 詳しくはこちら' : '▶ 詳しく見る');
+    a.hidden = true;
+    if (lk.type === 'url') {
+      var u = GIS.safeUrl(lk.url);
+      if (u) { a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.textContent = label; a.hidden = false; }
+    } else if (lk.type === 'popup' && String(lk.body || '').trim()) {
+      a.href = '#'; a.removeAttribute('target'); a.textContent = label; a.hidden = false;
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        openNotes('notice2', [{ id: 'notice2', title: String(lk.title || '').trim() || text.slice(0, 30), body: String(lk.body), layers: [], builtin: false }], { plain: true });
+      });
+    }
+    box.hidden = false;
+  }
+
   // ================= 拡大縮小ボタンの位置(検索欄・検索の案内と重ならないように) =================
   // 検索結果の一覧は地図の上に重ねて出すため、高さに含めない
   function syncSearchBox() {
@@ -1011,6 +1039,7 @@
     notes.innerHTML = '';
     function add(text) { if (!text) return; var p = document.createElement('p'); p.textContent = text; notes.appendChild(p); }
     add(($('notice-text') && $('notice-text').textContent) || '');
+    if (!$('notice2').hidden) add($('notice2-text').textContent);   // 2つ目の案内
     activeNotes().forEach(function (t) {   // 表示中のレイヤーの注意事項
       add('【' + t.title + '】利用規約・注意事項のページの「' + t.title + '」をご確認ください。');
     });
@@ -1096,7 +1125,9 @@
       if (c.title) document.title = c.title;
       var nc = c.notice || {};
       if (nc.text) $('notice-text').textContent = String(nc.text);
-      if (nc.enabled === false) { $('notice-main').hidden = true; $('notice').hidden = true; }
+      if (nc.enabled === false) $('notice-main').hidden = true;
+      setupNotice2(c.notice2 || {});
+      $('notice').hidden = $('notice-main').hidden && $('notice2').hidden;
       noteTabs = GIS.termsTabs(c).filter(function (t) { return !t.hidden; });
       docVars = GIS.docVars(c);
       pdfFiles = null;
