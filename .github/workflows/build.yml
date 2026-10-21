@@ -38,7 +38,7 @@ jobs:
       - name: データを変換して公開用ファイルを作る
         run: python tools/build.py --out _site --cache .cache
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
