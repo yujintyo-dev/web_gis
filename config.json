@@ -2,8 +2,8 @@
   "title": "公開型GIS",
   "map": {
     "center": [
-      36.720259,
-      139.700238
+      36.720242,
+      139.70026
     ],
     "zoom": 15,
     "minZoom": 8,
@@ -523,5 +523,14 @@
       }
     ]
   },
-  "searchExample": "今市本町　1-1"
+  "searchExample": "今市本町　1-1",
+  "notice2": {
+    "link": {
+      "type": "popup",
+      "title": "テスト",
+      "body": "てすと"
+    },
+    "enabled": true,
+    "text": "テスト"
+  }
 }
